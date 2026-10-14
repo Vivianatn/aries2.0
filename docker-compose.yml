@@ -1,0 +1,82 @@
+# Apache (déjà présent sur le serveur) assure HTTPS + mot de passe devant ArIès :
+# voir deploy/apache/aries.conf. Seul 127.0.0.1:3050 est publié.
+# Plafonds CPU/RAM : Apache, codex et PostgreSQL gardent toujours de quoi tourner.
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    command:
+      - -m
+      - /models/${LLM_MODEL_FILE:-Qwen3-8B-Q4_K_M.gguf}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - -c
+      - "8192"
+      # Mesuré (llama-bench) : 6 threads est l'optimum pour Qwen3-8B sur ces vCPU partagés
+      # (4 ou 5 : plus lent ; 8 : effondrement). Voir docs/benchmarks.md.
+      - -t
+      - "6"
+      - --jinja
+      # Pas de phase de « réflexion » : sur CPU, elle ajouterait des dizaines de secondes.
+      - --reasoning-budget
+      - "0"
+    volumes:
+      - ./models:/models:ro
+    cpus: 6
+    mem_limit: 8g
+    restart: unless-stopped
+
+  embeddings:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    command:
+      - -m
+      - /models/${EMBEDDING_MODEL_FILE:-bge-m3-q8_0.gguf}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --embeddings
+      - -c
+      - "2048"
+      - -b
+      - "2048"
+      - -ub
+      - "2048"
+      - -t
+      - "2"
+    volumes:
+      - ./models:/models:ro
+    cpus: 2
+    mem_limit: 1536m
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    environment:
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    cpus: 1
+    mem_limit: 1g
+    restart: unless-stopped
+
+  aries:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:3050:3050"
+    cpus: 1
+    mem_limit: 512m
+    depends_on:
+      - llm
+      - embeddings
+      - qdrant
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:

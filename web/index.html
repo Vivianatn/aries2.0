@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArIès</title>
+  <style>
+    :root { --bg: #070b14; --panel: #0e1626; --line: #1d2b45; --text: #d8e6ff; --muted: #7f93b8; --accent: #4fc3ff; --danger: #ff8a8a; }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
+    header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+    header .core { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+    header .core.busy { animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .3; } }
+    header h1 { margin: 0; font-size: 18px; letter-spacing: .15em; flex: 1; }
+    .ghost { background: none; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: 14px; }
+    .ghost:hover { color: var(--text); border-color: var(--accent); }
+    #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; width: 100%; margin: 0 auto; }
+    .msg { padding: 10px 14px; border-radius: 10px; white-space: pre-wrap; max-width: 85%; overflow-wrap: anywhere; }
+    .user { align-self: flex-end; background: #16365a; }
+    .assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
+    .error { color: var(--danger); }
+    .hint { color: var(--muted); text-align: center; margin: auto; }
+    form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); max-width: 860px; width: 100%; margin: 0 auto; }
+    textarea { flex: 1; resize: none; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+    #send { background: var(--accent); color: #04121f; border: 0; border-radius: 8px; padding: 0 18px; font-weight: 600; cursor: pointer; }
+    #send:disabled { opacity: .5; cursor: default; }
+    #memory { position: fixed; inset: 0 0 0 auto; width: min(420px, 100%); background: var(--panel); border-left: 1px solid var(--line); padding: 16px; overflow-y: auto; transform: translateX(100%); transition: transform .2s; }
+    #memory.open { transform: none; }
+    #memory h2 { margin: 0 0 4px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+    #memory p { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+    #memory ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    #memory li { display: flex; gap: 8px; align-items: flex-start; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+    #memory li span { flex: 1; }
+    #memory li button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
+    #memory li button:hover { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="core" id="core"></div>
+    <h1>ARIÈS</h1>
+    <button class="ghost" id="new-chat" type="button">Nouvelle conversation</button>
+    <button class="ghost" id="open-memory" type="button">Mémoire</button>
+  </header>
+  <main id="log"></main>
+  <form id="form">
+    <textarea id="input" rows="2" placeholder="Parle à ArIès… (Entrée pour envoyer)" autofocus></textarea>
+    <button id="send">Envoyer</button>
+  </form>
+  <aside id="memory" aria-label="Mémoire">
+    <h2>Ce qu'ArIès sait de toi <button class="ghost" id="close-memory" type="button">Fermer</button></h2>
+    <p>Retenu automatiquement après chaque conversation (2 min d'inactivité). Supprime ce qui est faux.</p>
+    <ul id="facts"></ul>
+  </aside>
+  <script>
+    const STORAGE_KEY = 'aries.conversationId';
+    const $ = (id) => document.getElementById(id);
+    const log = $('log'), form = $('form'), input = $('input'), send = $('send'), core = $('core');
+    let conversationId = null;
+
+    const storage = {
+      get() { try { return localStorage.getItem(STORAGE_KEY); } catch { return null; } },
+      set(value) { try { value ? localStorage.setItem(STORAGE_KEY, value) : localStorage.removeItem(STORAGE_KEY); } catch {} },
+    };
+
+    async function api(path, options = {}) {
+      const res = await fetch(`/api/v1${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const err = new Error(body.error?.message ?? `HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      return res;
+    }
+
+    function bubble(role, text = '') {
+      log.querySelector('.hint')?.remove();
+      const el = document.createElement('div');
+      el.className = `msg ${role}`;
+      el.textContent = text;
+      log.append(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    function showHint() {
+      log.replaceChildren();
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = 'Bonjour. Que puis-je faire pour toi ?';
+      log.append(hint);
+    }
+
+    async function loadConversation(id) {
+      try {
+        const messages = await (await api(`/conversations/${id}/messages`)).json();
+        conversationId = id;
+        log.replaceChildren();
+        messages.forEach((m) => bubble(m.role, m.content));
+        if (!messages.length) showHint();
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        newConversation();
+      }
+    }
+
+    function newConversation() {
+      conversationId = null;
+      storage.set(null);
+      showHint();
+      input.focus();
+    }
+
+    async function ensureConversation() {
+      if (conversationId) return conversationId;
+      const conversation = await (await api('/conversations', { method: 'POST' })).json();
+      conversationId = String(conversation.id);
+      storage.set(conversationId);
+      return conversationId;
+    }
+
+    async function ask(text) {
+      const id = await ensureConversation();
+      bubble('user', text);
+      const out = bubble('assistant');
+      let answer = '';
+
+      const res = await api(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content: text }) });
+
+      // Flux SSE : blocs séparés par une ligne vide, champs `event:` et `data:`.
+      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop();
+        for (const block of blocks) {
+          const event = block.match(/^event: ?(.*)$/m)?.[1];
+          const data = block.match(/^data: ?(.*)$/m)?.[1];
+          if (event === 'token') {
+            answer += JSON.parse(data).text;
+            out.textContent = answer;
+            log.scrollTop = log.scrollHeight;
+          } else if (event === 'error') {
+            throw new Error(JSON.parse(data).message);
+          }
+        }
+      }
+    }
+
+    async function loadFacts() {
+      const list = $('facts');
+      const facts = await (await api('/memory-facts')).json();
+      list.replaceChildren();
+      if (!facts.length) {
+        const li = document.createElement('li');
+        li.textContent = 'Rien pour l’instant.';
+        list.append(li);
+      }
+      for (const fact of facts) {
+        const li = document.createElement('li');
+        const text = document.createElement('span');
+        text.textContent = fact.content;
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.title = 'Oublier';
+        del.textContent = '✕';
+        del.addEventListener('click', async () => {
+          await api(`/memory-facts/${fact.id}`, { method: 'DELETE' });
+          li.remove();
+        });
+        li.append(text, del);
+        list.append(li);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || send.disabled) return;
+      input.value = '';
+      send.disabled = true;
+      core.classList.add('busy');
+      try {
+        await ask(text);
+      } catch (err) {
+        bubble('assistant error', `Erreur : ${err.message}`);
+      } finally {
+        send.disabled = false;
+        core.classList.remove('busy');
+        input.focus();
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+    });
+    $('new-chat').addEventListener('click', newConversation);
+    $('open-memory').addEventListener('click', async () => {
+      $('memory').classList.add('open');
+      await loadFacts().catch((err) => alert(`Mémoire indisponible : ${err.message}`));
+    });
+    $('close-memory').addEventListener('click', () => $('memory').classList.remove('open'));
+
+    const saved = storage.get();
+    saved ? loadConversation(saved).catch(() => newConversation()) : showHint();
+  </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# Configuration d'ArIès (valeurs pour Docker Compose). Aucun secret ici : les clés vont dans `.env`.
+# Surcharge possible par variable d'environnement : ARIES_BIND.
+
+[server]
+bind = "0.0.0.0:3050"
+web_dir = "web"
+
+[assistant]
+persona_path = "config/persona.md"
+
+# Toute API compatible OpenAI.
+# Local (llama.cpp, service `llm`) : secours du chat + tâches de fond (mémoire). Privé et gratuit.
+[llm.local]
+base_url = "http://llm:8080/v1"
+model = "local"
+
+# Cloud : répond au chat s'il est joignable, sinon bascule automatique sur le local.
+# Désactivé tant que la variable `api_key_env` est vide dans `.env`.
+[llm.cloud]
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+model = "gemini-2.5-flash"
+api_key_env = "GEMINI_API_KEY"
+# Pas de phase de réflexion : réponse plus rapide pour la conversation.
+reasoning_effort = "none"
+
+[memory]
+db_path = "data/aries.db"
+qdrant_url = "http://qdrant:6333"
+embedding_base_url = "http://embeddings:8080/v1"
+embedding_model = "bge-m3"
+embedding_dim = 1024
+# Rappel : nombre max d'éléments et similarité cosinus minimale (0 à 1).
+facts_limit = 8
+facts_min_score = 0.45
+episodes_limit = 3
+episodes_min_score = 0.5
+# Historique envoyé au LLM (caractères) ; au-delà, le début est remplacé par son résumé.
+history_char_budget = 12000
+# Consolidation (faits + souvenirs) après 2 min d'inactivité ou 20 messages en attente.
+consolidation_idle_secs = 120
+consolidation_batch = 20
