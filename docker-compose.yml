@@ -61,6 +61,17 @@ services:
     mem_limit: 1g
     restart: unless-stopped
 
+  # Méta-moteur de recherche (AGPL : service séparé, aucun port publié).
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?définir SEARXNG_SECRET dans .env}
+    volumes:
+      - ./deploy/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    cpus: 1
+    mem_limit: 512m
+    restart: unless-stopped
+
   aries:
     build: .
     env_file:
@@ -76,6 +87,7 @@ services:
       - llm
       - embeddings
       - qdrant
+      - searxng
     restart: unless-stopped
 
 volumes:

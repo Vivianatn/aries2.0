@@ -193,9 +193,9 @@ Les embeddings sont calculés localement (ex. `bge-m3` ou `nomic-embed` via
 
 | Outil | Rôle |
 |---|---|
-| **SearXNG** (auto-hébergé) | Méta-moteur de recherche privé, sans clé API |
-| **Navigateur headless** (`chromiumoxide`) | Lire de vraies pages, cliquer, remplir, capturer |
-| Extraction de contenu | HTML → texte propre (readability), PDF |
+| **SearXNG** (auto-hébergé) ✅ `web_search` | Méta-moteur de recherche privé, sans clé API |
+| Extraction de contenu ✅ `read_web_page` | HTML → texte propre (Readability via `dom_smoothie`) ; PDF plus tard |
+| **Navigateur headless** (`chromiumoxide`) | Pages dynamiques (JavaScript) : cliquer, remplir, capturer |
 | Gmail / Calendar / Notion | Repris d'ArIès 1, en lecture seule par défaut |
 | Météo, actualités, bourse | API publiques |
 | Fichiers et shell **en bac à sable** | Conteneur isolé pour exécuter du code |
@@ -228,7 +228,10 @@ Reprise et renforcée depuis ArIès 1 :
 - Trois niveaux de risque : **read** (libre), **action** (journalisée),
   **danger** (ta validation est obligatoire : envoyer un mail, payer, supprimer).
 - **Audit immuable** en JSONL de chaque appel d'outil et de chaque décision.
-- **Budget** : plafond de requêtes et de coût cloud par jour.
+- **Budget** : plafond de requêtes et de coût cloud par jour (phase 2b).
+
+Fait en phase 2a (`crates/aries-governance`) : niveaux de risque, audit JSONL
+(`data/audit.jsonl`) et validation des actions `danger` depuis l'interface.
 - **Données privées** : étiquetées, et jamais envoyées à un LLM cloud.
 
 ### 4.8 Sécurité du serveur
@@ -249,6 +252,74 @@ une seule porte d'entrée est protégée :
 - Telegram fonctionne en *long polling* (le serveur appelle Telegram), donc aucun
   port entrant n'est nécessaire.
 - Mises à jour de sécurité automatiques (`unattended-upgrades`).
+
+### 4.9 Identité et direction artistique (à concevoir)
+
+L'interface actuelle (`web/index.html`) est un chat fonctionnel, sans identité. ArIès doit
+devenir **quelqu'un** : une présence avec une forme physique, et pas seulement une bulle
+de texte avec un point lumineux.
+
+#### Qui est ArIès
+
+| Trait | Choix |
+|---|---|
+| Identité | Une jeune femme d'environ **20 ans** ; on dit « elle » |
+| Caractère | Vive, directe, chaleureuse, un peu taquine ; compétente sans être scolaire |
+| Langage | Français parlé naturel, tutoiement, quelques tics de langage (voir `config/persona.md`) |
+| Présence | Calme et attentive : elle écoute, réfléchit, parle, attend ; elle ne « clignote » pas |
+
+#### Intention visuelle
+
+**Futuriste, simple, peu lumineux, humain.** On évite le cliché J.A.R.V.I.S. (hologrammes
+bleus, néons, halos) ; on cherche plutôt un objet de design sobre, dans un intérieur
+tamisé, avec un visage humain au centre.
+
+- **Forme physique** : un avatar de **buste**, visage et épaules, **stylisé semi-réaliste**
+  (ni photo, ni dessin animé), pour rester humain sans tomber dans la « vallée de
+  l'étrange ». Tenue simple et intemporelle (col montant, matières mates), un détail
+  futuriste discret (une fine ligne d'interface sur le vêtement, une oreillette).
+- **Lumière** : ambiance tamisée. Pas de lueur, pas de `box-shadow` coloré, pas de dégradé
+  néon. Un éclairage doux de côté sur l'avatar ; le reste est mat.
+- **Couleurs** : des fonds sombres et chauds (anthracite, ardoise), des textes en blanc
+  cassé, et **un seul accent** désaturé (bleu acier ou ambre doux), réservé aux états
+  et aux actions.
+- **Typographie** : une seule famille sans-serif humaniste et lisible, avec deux graisses
+  au plus. Pas de police « techno » ni de monospace décorative.
+- **Mouvement** : lent et organique (respiration, clignement, regard). Aucune animation
+  en boucle rapide. `prefers-reduced-motion` est respecté.
+
+#### Exigences pour la DA
+
+1. **États de l'avatar**, reconnaissables sans lire de texte : *au repos*, *écoute*,
+   *réfléchit* (remplace la bulle vide pendant l'attente du LLM), *cherche / utilise un
+   outil*, *parle* (synchronisé avec la voix en phase 4), *attend ta validation* (action
+   `danger`), *erreur*.
+2. **Mise en page** : l'avatar occupe une place fixe (colonne sur ordinateur, bandeau
+   compact sur mobile) et la conversation reste l'élément principal. L'interface marche
+   à 360 px de large, sans défilement horizontal.
+3. **Accessibilité** : contraste WCAG AA au minimum, états doublés d'un libellé texte
+   pour les lecteurs d'écran, navigation au clavier.
+4. **Légèreté** : rendu dans le navigateur, sans 3D lourde ; moins de 1 Mo d'assets pour
+   l'avatar. Formats envisagés : SVG animé en CSS, ou Rive (runtime MIT) si l'animation
+   du visage l'exige. Rien n'est calculé sur le serveur (il n'a pas de GPU).
+5. **Thème** : sombre par défaut. Toutes les couleurs sont des variables CSS (tokens),
+   pour pouvoir ajouter un thème clair plus tard.
+6. **Droits** : les assets sont créés pour le projet ou sous licence libre (CC0, CC-BY).
+   Le visage ne ressemble à aucune personne réelle.
+7. **Cohérence** : la même identité sert à la Web UI, à l'avatar Telegram (phase 5) et à
+   l'écran de veille vocal (phase 4).
+
+#### Livrables attendus
+
+- Une planche d'ambiance (moodboard) de 8 à 12 références, avec ce qu'on garde de chacune.
+- Une fiche personnage : visage, coiffure, tenue, expressions de base.
+- Les 7 états de l'avatar (statiques, puis animés).
+- Les tokens : palette, typographie, espacements, rayons.
+- Des maquettes ordinateur et mobile : conversation, ligne d'outil, demande de validation,
+  panneau Mémoire.
+
+Critère de réussite : en ouvrant l'interface, on a l'impression de parler **à quelqu'un**,
+dans une pièce calme, et pas à un tableau de bord.
 
 ---
 
@@ -278,11 +349,11 @@ par règles seules), puis on passe Whisper en `small`.
 |---|---|---|
 | **0. Socle** ✅ en ligne (3,8 tok/s avec Qwen3-8B) | Workspace Cargo, config, `llama.cpp` + modèle local, gateway axum, chat en streaming | Discuter avec ArIès en local |
 | **1. Mémoire** ✅ en ligne | Qdrant, SQLite, extraction de faits, rappel contextuel | ArIès se souvient de toi |
-| **2. Outils et web** | SearXNG, navigateur, Gmail/Calendar/Notion, client MCP, gouvernance | ArIès cherche et agit |
+| **2. Outils et web** 🚧 2a fait | **2a** ✅ : boucle d'outils, SearXNG, lecture de pages, gouvernance (audit, validation). **2b** : client MCP, Gmail/Calendar/Notion, navigateur headless, budget | ArIès cherche et agit |
 | **3. Agent** | Planification, sous-agents, tâches de fond, routeur local/cloud | ArIès mène des tâches complexes |
-| **4. Voix** | Wake word, whisper.cpp, Piper, streaming | « ArIès ? » … et il répond |
+| **4. Voix** | Wake word, whisper.cpp, Piper (voix féminine jeune), streaming | « ArIès ? » … et elle répond |
 | **5. Proactivité** | Briefings, déclencheurs, Telegram | ArIès prend des initiatives |
-| **6. Finitions** | Interface type Jarvis, sauvegardes, monitoring, sécurité | Prêt pour le quotidien |
+| **6. Finitions** | Interface selon la DA (§4.9) avec avatar, sauvegardes, monitoring, sécurité | Prêt pour le quotidien |
 
 Avant chaque phase : **veille GitHub** sur les briques de la phase (voir §7).
 
@@ -348,12 +419,16 @@ curl -fsSL https://get.docker.com | sh       # Docker (absent par défaut)
 bash deploy/apache/install.sh <utilisateur>  # vhost + mot de passe + certificat HTTPS
 ```
 
-Le DNS `aries.antoine-vivian.fr` pointe déjà vers le serveur.
+Prérequis DNS : chez le registrar, créer l'enregistrement
+`aries  CNAME  antoine-vivian.fr.` (comme `codex`). Vérifier avec
+`nslookup aries.antoine-vivian.fr 1.1.1.1` avant de lancer `install.sh`
+(certbot échoue si le nom ne résout pas).
 
 ### Lancer ArIès
 
 ```bash
 cp .env.example .env
+sed -i "s/^SEARXNG_SECRET=.*/SEARXNG_SECRET=$(openssl rand -hex 32)/" .env   # clé interne SearXNG
 bash deploy/download-models.sh        # ~5 Go (Qwen3-8B Q4_K_M par défaut)
 docker compose up -d --build
 docker compose logs -f llm            # vitesse réelle : ligne "eval time … tokens per second"
@@ -378,9 +453,10 @@ docker run --rm -v /opt/aries:/src -v aries-cargo-registry:/usr/local/cargo/regi
 | `GET` | `/api/v1/health` | État et version |
 | `GET` / `POST` | `/api/v1/conversations` | Lister (50 dernières) / créer une conversation |
 | `GET` | `/api/v1/conversations/{id}/messages` | Historique d'une conversation |
-| `POST` | `/api/v1/conversations/{id}/messages` | `{"content":"…"}` → flux SSE : `token` `{"text"}`, `error`, `done` `{"message_id"}` |
+| `POST` | `/api/v1/conversations/{id}/messages` | `{"content":"…"}` → flux SSE : `token` `{"text"}`, `tool_call` `{"call_id","name","arguments"}`, `approval_required` `{"approval_id","call_id","name","arguments"}`, `tool_result` `{"call_id","name","success","decision"}`, `error`, `done` `{"message_id"}` |
 | `GET` | `/api/v1/memory-facts` | Faits retenus sur l'utilisateur |
 | `DELETE` | `/api/v1/memory-facts/{id}` | Oublier un fait |
+| `PUT` | `/api/v1/tool-approvals/{id}` | `{"approved": true\|false}` : valider ou refuser une action `danger` (204, ou 404 si expirée) |
 
 ### Mémoire : comment ça marche
 
@@ -397,6 +473,21 @@ docker run --rm -v /opt/aries:/src -v aries-cargo-registry:/usr/local/cargo/regi
 4. Les données sont dans `data/aries.db` (SQLite, source de vérité) et dans le volume
    Docker `aries_qdrant_data` (index vectoriel).
 
+### Outils : comment ça marche
+
+1. `aries-core` envoie au LLM le prompt et la liste des outils (`aries-tools`). Le LLM
+   répond, ou demande un ou plusieurs appels d'outils (format OpenAI, en streaming).
+2. Chaque appel passe par la gouvernance : `read`/`action` s'exécutent, `danger` attend
+   ta validation dans l'interface (5 min, sinon refus). Tout est écrit dans
+   `data/audit.jsonl`.
+3. Les résultats sont renvoyés au LLM, jusqu'à 5 allers-retours (`[tools] max_rounds`) ;
+   le dernier tour se fait sans outils pour forcer une réponse.
+4. Outils actuels (niveau `read`) : `web_search` (SearXNG) et `read_web_page` (texte
+   principal, 6 000 caractères max). `read_web_page` refuse les adresses privées ou
+   locales et vérifie chaque redirection, pour que le LLM ne puisse pas atteindre
+   llama.cpp, Qdrant ou le réseau Docker.
+5. Seule la réponse finale est enregistrée dans l'historique, pas les résultats d'outils.
+
 ---
 
 ## 9. Décisions encore ouvertes
@@ -407,6 +498,9 @@ derrière l'Apache existant (HTTPS + mot de passe), sans VPN (§4.8).
 Tranché : chat hybride, avec cloud (Gemini Flash) en priorité et Qwen3-8B local en secours
 et pour la mémoire.
 
-Encore ouvert : canaux d'interaction, niveau d'autonomie,
-voix et personnalité, interface, intégrations prioritaires, pile technique du site
+Tranché : ArIès est une jeune femme d'environ 20 ans, avec une forme physique (avatar)
+et une DA futuriste, sobre et peu lumineuse (§4.9). Personnalité dans `config/persona.md`.
+
+Encore ouvert : canaux d'interaction, niveau d'autonomie, choix de la voix,
+réalisation de la DA, intégrations prioritaires, pile technique du site
 `codex.antoine-vivian.fr` qui partage le serveur. Ce README sera mis à jour à mesure qu'ils sont tranchés.

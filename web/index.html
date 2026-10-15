@@ -20,6 +20,10 @@
     .user { align-self: flex-end; background: #16365a; }
     .assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
     .error { color: var(--danger); }
+    .tool { align-self: flex-start; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 85%; font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 4px 10px; overflow-wrap: anywhere; }
+    .tool.failed { color: var(--danger); }
+    .tool button { font: inherit; border-radius: 6px; padding: 2px 10px; cursor: pointer; border: 1px solid var(--line); background: none; color: var(--text); }
+    .tool button.allow { background: var(--accent); color: #04121f; border-color: var(--accent); }
     .hint { color: var(--muted); text-align: center; margin: auto; }
     form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); max-width: 860px; width: 100%; margin: 0 auto; }
     textarea { flex: 1; resize: none; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
@@ -121,11 +125,43 @@
       return conversationId;
     }
 
+    const TOOL_LABELS = {
+      web_search: (args) => `🔎 Recherche : ${args.query ?? ''}`,
+      read_web_page: (args) => `📄 Lecture : ${args.url ?? ''}`,
+    };
+
+    // Une ligne par appel d'outil, insérée avant la réponse en cours.
+    function toolLine(out, data) {
+      const el = document.createElement('div');
+      el.className = 'tool';
+      el.textContent = (TOOL_LABELS[data.name] ?? (() => `🛠 ${data.name}`))(data.arguments ?? {});
+      out.before(el);
+      log.scrollTop = log.scrollHeight;
+      return el;
+    }
+
+    function askApproval(line, approvalId) {
+      const decide = async (approved) => {
+        line.querySelectorAll('button').forEach((b) => b.remove());
+        await api(`/tool-approvals/${approvalId}`, { method: 'PUT', body: JSON.stringify({ approved }) })
+          .catch((err) => line.append(` (${err.message})`));
+      };
+      for (const [label, approved] of [['Autoriser', true], ['Refuser', false]]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        if (approved) button.className = 'allow';
+        button.addEventListener('click', () => decide(approved));
+        line.append(button);
+      }
+    }
+
     async function ask(text) {
       const id = await ensureConversation();
       bubble('user', text);
       const out = bubble('assistant');
       let answer = '';
+      const tools = new Map();
 
       const res = await api(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content: text }) });
 
@@ -145,6 +181,22 @@
             answer += JSON.parse(data).text;
             out.textContent = answer;
             log.scrollTop = log.scrollHeight;
+          } else if (event === 'tool_call') {
+            const call = JSON.parse(data);
+            tools.set(call.call_id, toolLine(out, call));
+          } else if (event === 'approval_required') {
+            const req = JSON.parse(data);
+            const line = tools.get(req.call_id) ?? toolLine(out, req);
+            line.prepend('⚠ Validation requise · ');
+            askApproval(line, req.approval_id);
+          } else if (event === 'tool_result') {
+            const res = JSON.parse(data);
+            const line = tools.get(res.call_id);
+            if (line) {
+              line.querySelectorAll('button').forEach((b) => b.remove());
+              line.append(res.success ? ' ✓' : ` ✗ (${res.decision === 'automatic' || res.decision === 'approved' ? 'échec' : 'refusé'})`);
+              if (!res.success) line.classList.add('failed');
+            }
           } else if (event === 'error') {
             throw new Error(JSON.parse(data).message);
           }

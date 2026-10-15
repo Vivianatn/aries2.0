@@ -1,0 +1,21 @@
+[package]
+name = "aries-core"
+description = "Agent d'ArIès : boucle LLM ↔ outils, sous gouvernance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+aries-governance.workspace = true
+aries-llm.workspace = true
+aries-tools.workspace = true
+
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+async-trait.workspace = true

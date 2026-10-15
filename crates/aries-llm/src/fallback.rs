@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{CompletionOptions, LlmError, LlmProvider, Message, TokenStream};
+use crate::{ChatStream, CompletionOptions, LlmError, LlmProvider, Message, ToolSpec};
 
 pub struct FallbackProvider {
     primary: Arc<dyn LlmProvider>,
@@ -21,12 +21,16 @@ impl FallbackProvider {
 impl LlmProvider for FallbackProvider {
     /// Bascule seulement si le principal échoue avant de commencer à répondre
     /// (réseau, quota, panne) : une réponse déjà entamée n'est jamais mélangée.
-    async fn chat_stream(&self, messages: Vec<Message>) -> Result<TokenStream, LlmError> {
-        match self.primary.chat_stream(messages.clone()).await {
-            Ok(tokens) => Ok(tokens),
+    async fn chat_stream(
+        &self,
+        messages: Vec<Message>,
+        tools: &[ToolSpec],
+    ) -> Result<ChatStream, LlmError> {
+        match self.primary.chat_stream(messages.clone(), tools).await {
+            Ok(events) => Ok(events),
             Err(err) => {
                 tracing::warn!(%err, "LLM principal indisponible, bascule sur le modèle local");
-                self.fallback.chat_stream(messages).await
+                self.fallback.chat_stream(messages, tools).await
             }
         }
     }
@@ -36,7 +40,11 @@ impl LlmProvider for FallbackProvider {
         messages: Vec<Message>,
         options: CompletionOptions,
     ) -> Result<String, LlmError> {
-        match self.primary.complete(messages.clone(), options.clone()).await {
+        match self
+            .primary
+            .complete(messages.clone(), options.clone())
+            .await
+        {
             Ok(text) => Ok(text),
             Err(err) => {
                 tracing::warn!(%err, "LLM principal indisponible, bascule sur le modèle local");

@@ -8,8 +8,8 @@ use axum::{
     http::StatusCode,
     response::sse::{Event, KeepAlive, Sse},
 };
-use futures::{Stream, StreamExt, stream};
-use serde::Deserialize;
+use futures::{Stream, stream};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::mpsc;
 
@@ -44,9 +44,10 @@ pub struct PostMessage {
     content: String,
 }
 
-/// Enregistre le message, puis répond en SSE : `token` (`{"text"}`), éventuellement
-/// `error`, puis `done` (`{"message_id"}`). La génération continue même si le client
-/// se déconnecte : la réponse est toujours enregistrée.
+/// Enregistre le message, puis répond en SSE : `token` (`{"text"}`), `tool_call`,
+/// `approval_required`, `tool_result`, éventuellement `error`, puis `done`
+/// (`{"message_id"}`). La génération continue même si le client se déconnecte :
+/// la réponse est toujours enregistrée.
 pub async fn post_message(
     State(state): State<AppState>,
     Path(id): Path<i64>,
@@ -61,28 +62,20 @@ pub async fn post_message(
     let guard = state.activity.begin();
     state.memory.append_message(id, Role::User, content).await?;
     let prompt = state.memory.build_prompt(id, &state.persona).await?;
-    let mut tokens = state.llm.chat_stream(prompt).await?;
 
     let (tx, rx) = mpsc::channel(EVENT_BUFFER);
     let memory = state.memory.clone();
+    let agent = state.agent.clone();
     tokio::spawn(async move {
         let _guard = guard;
-        let mut answer = String::new();
-        while let Some(item) = tokens.next().await {
-            match item {
-                Ok(text) => {
-                    answer.push_str(&text);
-                    let _ = tx.send(json_event("token", json!({ "text": text }))).await;
-                }
-                Err(err) => {
-                    tracing::warn!(%err, "flux LLM interrompu");
-                    let _ = tx
-                        .send(json_event("error", json!({ "message": err.to_string() })))
-                        .await;
-                    break;
-                }
+        let (agent_tx, mut agent_rx) = mpsc::channel(EVENT_BUFFER);
+        let run = async move { agent.run(prompt, id, &agent_tx).await };
+        let forward = async {
+            while let Some(event) = agent_rx.recv().await {
+                let _ = tx.send(json_event(event.name(), &event)).await;
             }
-        }
+        };
+        let (answer, ()) = tokio::join!(run, forward);
 
         let message_id = if answer.trim().is_empty() {
             None
@@ -94,7 +87,7 @@ pub async fn post_message(
                 .ok()
         };
         let _ = tx
-            .send(json_event("done", json!({ "message_id": message_id })))
+            .send(json_event("done", &json!({ "message_id": message_id })))
             .await;
     });
 
@@ -113,6 +106,7 @@ async fn ensure_exists(state: &AppState, id: i64) -> Result<(), ApiError> {
     }
 }
 
-fn json_event(name: &str, data: serde_json::Value) -> Event {
-    Event::default().event(name).data(data.to_string())
+fn json_event(name: &str, data: &impl Serialize) -> Event {
+    let data = serde_json::to_string(data).unwrap_or_else(|_| "{}".into());
+    Event::default().event(name).data(data)
 }

@@ -4,11 +4,14 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use eventsource_stream::Eventsource;
-use futures::{StreamExt, TryStreamExt, future};
+use futures::{StreamExt, TryStreamExt, future, stream};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{CompletionOptions, LlmError, LlmProvider, Message, TokenStream};
+use crate::{
+    ChatEvent, ChatStream, CompletionOptions, LlmError, LlmProvider, Message, ToolSpec,
+    tool_calls::{ToolCallAccumulator, ToolCallDelta},
+};
 
 const STREAM_END_MARKER: &str = "[DONE]";
 
@@ -83,6 +86,24 @@ struct ChatRequest<'a> {
     response_format: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_effort: Option<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tools: Vec<Value>,
+}
+
+fn tool_definitions(tools: &[ToolSpec]) -> Vec<Value> {
+    tools
+        .iter()
+        .map(|tool| {
+            json!({
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                },
+            })
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -99,6 +120,8 @@ struct ChunkChoice {
 #[derive(Default, Deserialize)]
 struct ChunkDelta {
     content: Option<String>,
+    #[serde(default)]
+    tool_calls: Vec<ToolCallDelta>,
 }
 
 #[derive(Deserialize)]
@@ -118,7 +141,11 @@ struct CompletionMessage {
 
 #[async_trait]
 impl LlmProvider for OpenAiCompatProvider {
-    async fn chat_stream(&self, messages: Vec<Message>) -> Result<TokenStream, LlmError> {
+    async fn chat_stream(
+        &self,
+        messages: Vec<Message>,
+        tools: &[ToolSpec],
+    ) -> Result<ChatStream, LlmError> {
         let body = ChatRequest {
             model: &self.model,
             messages: &messages,
@@ -127,25 +154,51 @@ impl LlmProvider for OpenAiCompatProvider {
             temperature: None,
             response_format: None,
             reasoning_effort: self.reasoning_effort.as_deref(),
+            tools: tool_definitions(tools),
         };
         let response = self.send(&body).await?;
 
-        let tokens = response
+        let deltas = response
             .bytes_stream()
             .eventsource()
             .map_err(|err| LlmError::Stream(err.to_string()))
             .try_take_while(|event| future::ready(Ok(event.data != STREAM_END_MARKER)))
-            .try_filter_map(|event| async move {
+            .and_then(|event| async move {
                 let chunk: ChatChunk = serde_json::from_str(&event.data)?;
-                let text = chunk
-                    .choices
-                    .into_iter()
-                    .next()
-                    .and_then(|choice| choice.delta.content);
-                Ok::<_, LlmError>(text.filter(|text| !text.is_empty()))
+                Ok(chunk.choices.into_iter().next().map(|choice| choice.delta))
             });
 
-        Ok(tokens.boxed())
+        // Le texte est relayé au fil de l'eau ; les appels d'outils, reçus par
+        // fragments, sont assemblés et émis une fois le flux terminé.
+        let events = stream::unfold(
+            (deltas.boxed(), Some(ToolCallAccumulator::default())),
+            |(mut deltas, mut acc)| async move {
+                loop {
+                    let pending = acc.as_mut()?;
+                    match deltas.next().await {
+                        Some(Ok(Some(delta))) => {
+                            delta
+                                .tool_calls
+                                .into_iter()
+                                .for_each(|call| pending.push(call));
+                            if let Some(text) = delta.content.filter(|text| !text.is_empty()) {
+                                return Some((Ok(ChatEvent::Text(text)), (deltas, acc)));
+                            }
+                        }
+                        Some(Ok(None)) => {}
+                        Some(Err(err)) => return Some((Err(err), (deltas, None))),
+                        None => {
+                            let calls = acc.take()?.finish();
+                            if calls.is_empty() {
+                                return None;
+                            }
+                            return Some((Ok(ChatEvent::ToolCalls(calls)), (deltas, None)));
+                        }
+                    }
+                }
+            },
+        );
+        Ok(events.boxed())
     }
 
     async fn complete(
@@ -161,6 +214,7 @@ impl LlmProvider for OpenAiCompatProvider {
             temperature: options.temperature,
             response_format: options.json.then(|| json!({ "type": "json_object" })),
             reasoning_effort: self.reasoning_effort.as_deref(),
+            tools: Vec::new(),
         };
         let completion: ChatCompletion = self.send(&body).await?.json().await?;
         Ok(completion

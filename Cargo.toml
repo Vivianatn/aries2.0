@@ -9,12 +9,16 @@ rust-version = "1.85"
 license = "MIT"
 
 [workspace.dependencies]
+aries-core = { path = "crates/aries-core" }
+aries-governance = { path = "crates/aries-governance" }
 aries-llm = { path = "crates/aries-llm" }
 aries-memory = { path = "crates/aries-memory" }
+aries-tools = { path = "crates/aries-tools" }
 
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
+dom_smoothie = "0.18"
 eventsource-stream = "0.2"
 futures = "0.3"
 jiff = "0.2"

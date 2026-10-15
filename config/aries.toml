@@ -39,3 +39,18 @@ history_char_budget = 12000
 # Consolidation (faits + souvenirs) après 2 min d'inactivité ou 20 messages en attente.
 consolidation_idle_secs = 120
 consolidation_batch = 20
+
+[tools]
+# SearXNG (service `searxng`, réseau Docker interne) : recherche web sans clé API.
+searxng_url = "http://searxng:8080"
+search_results = 5
+# Texte max d'une page renvoyé au LLM (le contexte local fait 8k tokens).
+page_max_chars = 6000
+# Allers-retours outils ↔ LLM par message ; le dernier tour force la réponse.
+max_rounds = 5
+
+[governance]
+# Un appel d'outil par ligne (JSONL, ajout seul).
+audit_path = "data/audit.jsonl"
+# Délai pour valider une action `danger` dans l'interface ; au-delà, elle est refusée.
+approval_timeout_secs = 300

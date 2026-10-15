@@ -11,8 +11,11 @@ name = "aries"
 path = "src/main.rs"
 
 [dependencies]
+aries-core.workspace = true
+aries-governance.workspace = true
 aries-llm.workspace = true
 aries-memory.workspace = true
+aries-tools.workspace = true
 
 anyhow.workspace = true
 axum.workspace = true

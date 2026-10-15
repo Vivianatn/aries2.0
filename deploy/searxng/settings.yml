@@ -1,0 +1,19 @@
+# SearXNG pour ArIès : usage interne uniquement (réseau Docker), via l'API JSON.
+# La clé `server.secret_key` vient de la variable SEARXNG_SECRET (.env).
+use_default_settings: true
+
+general:
+  instance_name: "ArIès"
+
+search:
+  safe_search: 0
+  default_lang: "fr-FR"
+  formats:
+    - html
+    - json
+
+server:
+  # Pas de limiteur : seul ArIès interroge l'instance (il exigerait Valkey).
+  limiter: false
+  public_instance: false
+  image_proxy: false

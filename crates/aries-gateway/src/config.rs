@@ -1,7 +1,9 @@
 use std::{env, fs, net::SocketAddr, path::PathBuf};
 
 use anyhow::Context;
+use aries_governance::GovernanceConfig;
 use aries_memory::MemoryConfig;
+use aries_tools::ToolsConfig;
 use serde::Deserialize;
 
 const DEFAULT_CONFIG_PATH: &str = "config/aries.toml";
@@ -13,6 +15,10 @@ pub struct Config {
     pub llm: LlmConfig,
     #[serde(default)]
     pub memory: MemoryConfig,
+    #[serde(default)]
+    pub tools: ToolsConfig,
+    #[serde(default)]
+    pub governance: GovernanceConfig,
 }
 
 #[derive(Debug, Deserialize)]
