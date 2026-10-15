@@ -104,6 +104,11 @@ impl Memory {
             .await
     }
 
+    /// Définitif : la conversation ne sera plus traitée que par le modèle local.
+    pub async fn mark_private(&self, conversation_id: i64) -> Result<(), MemoryError> {
+        self.store.mark_private(conversation_id).await
+    }
+
     pub async fn list_facts(&self) -> Result<Vec<Fact>, MemoryError> {
         self.store.list_facts().await
     }

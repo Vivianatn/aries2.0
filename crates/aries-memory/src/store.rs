@@ -17,6 +17,8 @@ const TITLE_MAX_CHARS: usize = 60;
 pub struct Conversation {
     pub id: i64,
     pub title: Option<String>,
+    /// Contient des données privées : traitée uniquement par le modèle local.
+    pub private: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -40,6 +42,7 @@ impl StoredMessage {
 pub struct Fact {
     pub id: i64,
     pub content: String,
+    pub private: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -80,7 +83,7 @@ impl Store {
 
     pub async fn create_conversation(&self) -> Result<Conversation, MemoryError> {
         Ok(sqlx::query_as(
-            "INSERT INTO conversations DEFAULT VALUES RETURNING id, title, created_at, updated_at",
+            "INSERT INTO conversations DEFAULT VALUES RETURNING id, title, private, created_at, updated_at",
         )
         .fetch_one(&self.pool)
         .await?)
@@ -88,7 +91,7 @@ impl Store {
 
     pub async fn conversation(&self, id: i64) -> Result<Option<Conversation>, MemoryError> {
         Ok(sqlx::query_as(
-            "SELECT id, title, created_at, updated_at FROM conversations WHERE id = ?",
+            "SELECT id, title, private, created_at, updated_at FROM conversations WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -97,12 +100,20 @@ impl Store {
 
     pub async fn list_conversations(&self, limit: i64) -> Result<Vec<Conversation>, MemoryError> {
         Ok(sqlx::query_as(
-            "SELECT id, title, created_at, updated_at FROM conversations
+            "SELECT id, title, private, created_at, updated_at FROM conversations
              ORDER BY updated_at DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(&self.pool)
         .await?)
+    }
+
+    pub async fn mark_private(&self, conversation_id: i64) -> Result<(), MemoryError> {
+        sqlx::query("UPDATE conversations SET private = 1 WHERE id = ?")
+            .bind(conversation_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     /// Ajoute un message ; le premier message utilisateur donne son titre à la conversation.
@@ -213,19 +224,28 @@ impl Store {
 
     pub async fn list_facts(&self) -> Result<Vec<Fact>, MemoryError> {
         Ok(sqlx::query_as(
-            "SELECT id, content, created_at, updated_at FROM facts ORDER BY updated_at DESC",
+            "SELECT id, content, private, created_at, updated_at FROM facts ORDER BY updated_at DESC",
         )
         .fetch_all(&self.pool)
         .await?)
     }
 
-    pub async fn facts_by_ids(&self, ids: &[i64]) -> Result<Vec<Fact>, MemoryError> {
+    /// `include_private = false` écarte les faits privés (réponse par un LLM cloud).
+    pub async fn facts_by_ids(
+        &self,
+        ids: &[i64],
+        include_private: bool,
+    ) -> Result<Vec<Fact>, MemoryError> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
         let mut query = QueryBuilder::<Sqlite>::new(
-            "SELECT id, content, created_at, updated_at FROM facts WHERE id IN (",
+            "SELECT id, content, private, created_at, updated_at FROM facts WHERE ",
         );
+        if !include_private {
+            query.push("private = 0 AND ");
+        }
+        query.push("id IN (");
         let mut separated = query.separated(", ");
         for id in ids {
             separated.push_bind(*id);
@@ -240,7 +260,8 @@ impl Store {
         source_conversation_id: i64,
     ) -> Result<i64, MemoryError> {
         Ok(sqlx::query_scalar(
-            "INSERT INTO facts (content, source_conversation_id) VALUES (?, ?) RETURNING id",
+            "INSERT INTO facts (content, source_conversation_id, private)
+             VALUES (?1, ?2, (SELECT private FROM conversations WHERE id = ?2)) RETURNING id",
         )
         .bind(content)
         .bind(source_conversation_id)
@@ -248,13 +269,21 @@ impl Store {
         .await?)
     }
 
-    pub async fn update_fact(&self, id: i64, content: &str) -> Result<bool, MemoryError> {
+    /// Un fait modifié depuis une conversation privée devient privé.
+    pub async fn update_fact(
+        &self,
+        id: i64,
+        content: &str,
+        conversation_id: i64,
+    ) -> Result<bool, MemoryError> {
         let result = sqlx::query(
-            "UPDATE facts SET content = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-             WHERE id = ?",
+            "UPDATE facts SET content = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                private = MAX(private, (SELECT private FROM conversations WHERE id = ?3))
+             WHERE id = ?2",
         )
         .bind(content)
         .bind(id)
+        .bind(conversation_id)
         .execute(&self.pool)
         .await?;
         Ok(result.rows_affected() > 0)
@@ -289,13 +318,24 @@ impl Store {
         .await?)
     }
 
-    pub async fn episodes_by_ids(&self, ids: &[i64]) -> Result<Vec<Episode>, MemoryError> {
+    /// `include_private = false` écarte les souvenirs des conversations privées.
+    pub async fn episodes_by_ids(
+        &self,
+        ids: &[i64],
+        include_private: bool,
+    ) -> Result<Vec<Episode>, MemoryError> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
         let mut query = QueryBuilder::<Sqlite>::new(
-            "SELECT id, conversation_id, summary, started_at, ended_at FROM episodes WHERE id IN (",
+            "SELECT id, conversation_id, summary, started_at, ended_at FROM episodes WHERE ",
         );
+        if !include_private {
+            query.push(
+                "conversation_id NOT IN (SELECT id FROM conversations WHERE private = 1) AND ",
+            );
+        }
+        query.push("id IN (");
         let mut separated = query.separated(", ");
         for id in ids {
             separated.push_bind(*id);
@@ -316,5 +356,58 @@ impl Store {
         .bind(conversation_id)
         .fetch_all(&self.pool)
         .await?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn private_conversation_hides_its_facts_and_episodes() {
+        let path = std::env::temp_dir().join(format!("aries-store-{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let store = Store::open(&path).await.unwrap();
+        let public = store.create_conversation().await.unwrap().id;
+        let secret = store.create_conversation().await.unwrap().id;
+        store.mark_private(secret).await.unwrap();
+        assert!(store.conversation(secret).await.unwrap().unwrap().private);
+
+        let shared = store.insert_fact("aime le café", public).await.unwrap();
+        let hidden = store
+            .insert_fact("rendez-vous médical", secret)
+            .await
+            .unwrap();
+        let public_episode = store.insert_episode(public, "a", "t0", "t1").await.unwrap();
+        let secret_episode = store.insert_episode(secret, "b", "t0", "t1").await.unwrap();
+
+        let ids = |facts: Vec<Fact>| facts.into_iter().map(|f| f.id).collect::<Vec<_>>();
+        let all = [shared, hidden];
+        assert_eq!(
+            ids(store.facts_by_ids(&all, false).await.unwrap()),
+            [shared]
+        );
+        assert_eq!(store.facts_by_ids(&all, true).await.unwrap().len(), 2);
+
+        // Un fait public modifié depuis une conversation privée devient privé.
+        assert!(
+            store
+                .update_fact(shared, "aime le thé", secret)
+                .await
+                .unwrap()
+        );
+        assert!(store.facts_by_ids(&all, false).await.unwrap().is_empty());
+
+        let episodes = [public_episode, secret_episode];
+        let visible = store.episodes_by_ids(&episodes, false).await.unwrap();
+        assert_eq!(
+            visible.iter().map(|e| e.id).collect::<Vec<_>>(),
+            [public_episode]
+        );
+        assert_eq!(
+            store.episodes_by_ids(&episodes, true).await.unwrap().len(),
+            2
+        );
+        let _ = std::fs::remove_file(&path);
     }
 }

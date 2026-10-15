@@ -16,6 +16,7 @@ const ITEM_MAX_CHARS: usize = 400;
 
 impl Memory {
     /// Prompt complet pour répondre au dernier message de la conversation.
+    /// Les souvenirs privés n'y figurent que si `include_private` (modèle local).
     ///
     /// Le contexte mémoire est placé dans le dernier message utilisateur, pas dans le
     /// prompt système : le début du prompt reste identique d'un tour à l'autre et
@@ -24,6 +25,7 @@ impl Memory {
         &self,
         conversation_id: i64,
         persona: &str,
+        include_private: bool,
     ) -> Result<Vec<Message>, MemoryError> {
         let latest = self
             .store
@@ -61,7 +63,9 @@ impl Memory {
             .last_mut()
             .filter(|message| message.role == Role::User)
         {
-            let context = self.recall_context(conversation_id, &last.content).await;
+            let context = self
+                .recall_context(conversation_id, &last.content, include_private)
+                .await;
             last.content = format!("{context}\n{}", last.content);
         }
         Ok(messages)
@@ -72,6 +76,7 @@ impl Memory {
         &self,
         conversation_id: i64,
         query: &str,
+        include_private: bool,
     ) -> Result<(Vec<Fact>, Vec<Episode>), MemoryError> {
         let vector = self
             .embedder
@@ -96,21 +101,29 @@ impl Memory {
             ),
         )?;
 
-        let mut facts = self.store.facts_by_ids(&fact_ids).await?;
+        let mut facts = self.store.facts_by_ids(&fact_ids, include_private).await?;
         facts.sort_by_key(|fact| fact_ids.iter().position(|&id| id == fact.id));
 
-        let episodes = self.store.episodes_by_ids(&episode_ids).await?;
+        let episodes = self
+            .store
+            .episodes_by_ids(&episode_ids, include_private)
+            .await?;
         Ok((facts, episodes))
     }
 
     /// Bloc de contexte injecté avant le message utilisateur. Ne bloque jamais la
     /// réponse : si la mémoire est indisponible, ArIès répond sans souvenirs.
-    async fn recall_context(&self, conversation_id: i64, query: &str) -> String {
+    async fn recall_context(
+        &self,
+        conversation_id: i64,
+        query: &str,
+        include_private: bool,
+    ) -> String {
         let mut context = format!(
             "[Contexte fourni par ta mémoire, à utiliser sans le citer tel quel]\nNous sommes le {}.",
             now_in_french()
         );
-        match self.recall(conversation_id, query).await {
+        match self.recall(conversation_id, query, include_private).await {
             Ok((facts, episodes)) => {
                 if !facts.is_empty() {
                     context.push_str("\nCe que tu sais de l'utilisateur :");

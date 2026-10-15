@@ -53,6 +53,8 @@ pub struct CloudLlmConfig {
     /// Nom de la variable d'environnement (dans `.env`) qui contient la clé API.
     pub api_key_env: String,
     pub reasoning_effort: Option<String>,
+    /// Budget : requêtes cloud max par jour (chaque tour d'outil compte), puis modèle local.
+    pub daily_request_limit: Option<u32>,
 }
 
 impl Config {

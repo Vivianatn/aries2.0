@@ -197,6 +197,8 @@
               line.append(res.success ? ' ✓' : ` ✗ (${res.decision === 'automatic' || res.decision === 'approved' ? 'échec' : 'refusé'})`);
               if (!res.success) line.classList.add('failed');
             }
+          } else if (event === 'private_mode') {
+            toolLine(out, { name: 'private_mode' }).textContent = '🔒 Données privées : suite en local (plus lent)';
           } else if (event === 'error') {
             throw new Error(JSON.parse(data).message);
           }

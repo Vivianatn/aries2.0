@@ -72,6 +72,98 @@ services:
     mem_limit: 512m
     restart: unless-stopped
 
+  # Navigateur headless (Playwright MCP, Apache-2.0). Réseau `browser` seulement : les
+  # pages visitées n'atteignent ni ArIès (API sans mot de passe en interne), ni llama.cpp,
+  # ni Qdrant, ni SearXNG. ArIès lui parle via le relais `browser-gateway`.
+  playwright:
+    image: mcr.microsoft.com/playwright/mcp:latest
+    init: true
+    entrypoint: ["node", "/app/cli.js"]
+    command:
+      - --headless
+      - --browser
+      - chromium
+      - --no-sandbox
+      - --isolated
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8931"
+      - --allowed-hosts
+      - browser-gateway:8931
+    networks:
+      - browser
+    cpus: 1
+    mem_limit: 1g
+    restart: unless-stopped
+
+  # Relais TCP à destination fixe (socat, GPL : service séparé) : le seul conteneur
+  # présent sur les deux réseaux, il ne sait joindre que Playwright.
+  browser-gateway:
+    image: alpine/socat:latest
+    command: ["TCP-LISTEN:8931,fork,reuseaddr", "TCP:playwright:8931"]
+    networks:
+      - default
+      - browser
+    depends_on:
+      - playwright
+    cpus: 0.25
+    mem_limit: 32m
+    restart: unless-stopped
+
+  # Serveur MCP Notion officiel (MIT), version figée. NOTION_TOKEN : jeton d'intégration ;
+  # NOTION_MCP_AUTH_TOKEN : secret partagé avec ArIès (réseau interne, aucun port publié).
+  notion:
+    image: node:22-alpine
+    command:
+      - npx
+      - -y
+      - "@notionhq/notion-mcp-server@2.5.2"
+      - --transport
+      - http
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+    environment:
+      NOTION_TOKEN: ${NOTION_TOKEN:-}
+      AUTH_TOKEN: ${NOTION_MCP_AUTH_TOKEN:-}
+    volumes:
+      - npm_cache:/root/.npm
+    cpus: 0.5
+    mem_limit: 256m
+    restart: unless-stopped
+
+  # Gmail et Agenda (google_workspace_mcp, MIT), construit depuis un commit figé.
+  # Mono-utilisateur : le jeton OAuth (volume google_creds) est obtenu une fois via
+  # http://localhost:8000/oauth2callback, joint par un tunnel SSH (aucun port publié).
+  google:
+    build: https://github.com/taylorwilsdon/google_workspace_mcp.git#789730452b9c5452b2c8d348cf005d196c12ba4e
+    entrypoint: ["/app/.venv/bin/python", "main.py"]
+    command:
+      - --transport
+      - streamable-http
+      - --single-user
+      - --permissions
+      - gmail:send
+      - calendar:full
+    environment:
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      USER_GOOGLE_EMAIL: ${USER_GOOGLE_EMAIL:-}
+      MCP_SINGLE_USER_MODE: "1"
+      WORKSPACE_MCP_HOST: 0.0.0.0
+      WORKSPACE_MCP_PORT: "8000"
+      WORKSPACE_MCP_BASE_URI: http://localhost
+      GOOGLE_OAUTH_REDIRECT_URI: http://localhost:8000/oauth2callback
+      OAUTHLIB_INSECURE_TRANSPORT: "1"
+      WORKSPACE_MCP_CREDENTIALS_DIR: /app/store_creds
+    volumes:
+      - google_creds:/app/store_creds
+    cpus: 0.5
+    mem_limit: 384m
+    restart: unless-stopped
+
   aries:
     build: .
     env_file:
@@ -88,7 +180,15 @@ services:
       - embeddings
       - qdrant
       - searxng
+      - browser-gateway
+      - notion
+      - google
     restart: unless-stopped
+
+networks:
+  browser:
 
 volumes:
   qdrant_data:
+  npm_cache:
+  google_creds:

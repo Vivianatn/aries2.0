@@ -7,7 +7,7 @@ use std::{env, fs, sync::Arc};
 use anyhow::Context;
 use aries_core::Agent;
 use aries_governance::AuditLog;
-use aries_llm::{FallbackProvider, LlmProvider, OpenAiCompatProvider};
+use aries_llm::{DailyQuota, FallbackProvider, LlmProvider, OpenAiCompatProvider};
 use aries_memory::{ActivityGauge, Memory};
 use aries_tools::ToolRegistry;
 use tokio::net::TcpListener;
@@ -44,9 +44,10 @@ async fn main() -> anyhow::Result<()> {
     let activity = ActivityGauge::default();
     memory
         .clone()
-        .spawn_consolidation(local_llm, activity.clone());
+        .spawn_consolidation(local_llm.clone(), activity.clone());
 
-    let tools = ToolRegistry::with_web_tools(&config.tools)?;
+    let mut tools = ToolRegistry::with_web_tools(&config.tools)?;
+    tools.connect_mcp(&config.tools.mcp).await;
     let audit = AuditLog::open(&config.governance.audit_path)
         .await
         .with_context(|| {
@@ -57,6 +58,7 @@ async fn main() -> anyhow::Result<()> {
         })?;
     let agent = Arc::new(Agent::new(
         chat_llm,
+        local_llm,
         tools,
         audit,
         config.governance.clone(),
@@ -95,13 +97,15 @@ fn chat_provider(
         tracing::info!(variable = %cloud.api_key_env, "chat : clé cloud absente, modèle local uniquement");
         return Ok(local.clone());
     };
-    let provider = OpenAiCompatProvider::new(&cloud.base_url, &cloud.model, Some(api_key))?
-        .with_reasoning_effort(cloud.reasoning_effort.clone());
-    tracing::info!(model = %cloud.model, "chat : cloud, avec bascule sur le modèle local");
-    Ok(Arc::new(FallbackProvider::new(
-        Arc::new(provider),
-        local.clone(),
-    )))
+    let mut provider: Arc<dyn LlmProvider> = Arc::new(
+        OpenAiCompatProvider::new(&cloud.base_url, &cloud.model, Some(api_key))?
+            .with_reasoning_effort(cloud.reasoning_effort.clone()),
+    );
+    if let Some(limit) = cloud.daily_request_limit {
+        provider = Arc::new(DailyQuota::new(provider, limit));
+    }
+    tracing::info!(model = %cloud.model, limit = ?cloud.daily_request_limit, "chat : cloud, avec bascule sur le modèle local");
+    Ok(Arc::new(FallbackProvider::new(provider, local.clone())))
 }
 
 /// Ctrl+C en local, SIGTERM sous Docker.

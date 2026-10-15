@@ -2,10 +2,12 @@
 
 mod fallback;
 mod openai_compat;
+mod quota;
 mod tool_calls;
 
 pub use fallback::FallbackProvider;
 pub use openai_compat::{OpenAiCompatEmbedder, OpenAiCompatProvider};
+pub use quota::DailyQuota;
 
 use async_trait::async_trait;
 use futures::stream::BoxStream;
@@ -143,6 +145,8 @@ pub enum LlmError {
     Stream(String),
     #[error("JSON invalide : {0}")]
     Json(#[from] serde_json::Error),
+    #[error("budget du jour atteint ({0} requêtes)")]
+    QuotaExceeded(u32),
 }
 
 /// Élément d'une réponse streamée.

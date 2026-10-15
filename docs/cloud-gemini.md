@@ -92,7 +92,7 @@ Le modèle est défini dans `config/aries.toml` :
 
 ```toml
 [llm.cloud]
-model = "gemini-2.5-flash"
+model = "gemini-3.5-flash"
 ```
 
 Pour voir les modèles disponibles avec ta clé :

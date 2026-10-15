@@ -1,8 +1,10 @@
 //! Outils qu'ArIès peut appeler. Chacun déclare son niveau de risque (gouvernance).
 
+mod mcp;
 mod web_page;
 mod web_search;
 
+pub use mcp::{McpServerConfig, McpTool};
 pub use web_page::ReadWebPage;
 pub use web_search::WebSearch;
 
@@ -32,6 +34,15 @@ pub enum ToolError {
 pub trait Tool: Send + Sync {
     fn spec(&self) -> ToolSpec;
     fn risk(&self) -> RiskLevel;
+    /// Résultat privé (ex. contenu d'un mail) : la conversation passe au modèle local.
+    fn private(&self) -> bool {
+        false
+    }
+    /// Proposé aussi au modèle local d'une conversation privée (dont le contexte est
+    /// court) ; les outils privés le sont toujours.
+    fn local(&self) -> bool {
+        false
+    }
     /// Résultat en texte, destiné au LLM.
     async fn call(&self, arguments: Value) -> Result<String, ToolError>;
 }
@@ -47,6 +58,8 @@ pub struct ToolsConfig {
     pub page_max_chars: usize,
     /// Allers-retours outils ↔ LLM par message, avant la réponse finale forcée.
     pub max_rounds: usize,
+    /// Serveurs MCP (`[[tools.mcp]]`) dont les outils sont proposés au LLM.
+    pub mcp: Vec<McpServerConfig>,
 }
 
 impl Default for ToolsConfig {
@@ -56,6 +69,7 @@ impl Default for ToolsConfig {
             search_results: 5,
             page_max_chars: 6_000,
             max_rounds: 5,
+            mcp: Vec::new(),
         }
     }
 }
@@ -75,11 +89,44 @@ impl ToolRegistry {
     }
 
     pub fn register(&mut self, tool: impl Tool + 'static) {
-        self.tools.push((tool.spec(), Arc::new(tool)));
+        let spec = tool.spec();
+        if self.get(&spec.name).is_some() {
+            tracing::warn!(name = %spec.name, "outil en double ignoré");
+            return;
+        }
+        self.tools.push((spec, Arc::new(tool)));
+    }
+
+    /// Ajoute les outils des serveurs MCP joignables ; un serveur absent est signalé
+    /// puis ignoré, pour qu'ArIès démarre quand même.
+    pub async fn connect_mcp(&mut self, servers: &[McpServerConfig]) {
+        let connections = futures::future::join_all(servers.iter().map(|server| async move {
+            let connection = mcp::McpConnection::connect(server.clone()).await?;
+            connection.tools().await
+        }))
+        .await;
+        for (server, tools) in servers.iter().zip(connections) {
+            match tools {
+                Ok(tools) => {
+                    tracing::info!(server = %server.name, count = tools.len(), "outils MCP chargés");
+                    tools.into_iter().for_each(|tool| self.register(tool));
+                }
+                Err(err) => tracing::error!(server = %server.name, %err, "serveur MCP ignoré"),
+            }
+        }
     }
 
     pub fn specs(&self) -> Vec<ToolSpec> {
         self.tools.iter().map(|(spec, _)| spec.clone()).collect()
+    }
+
+    /// Outils d'une conversation privée, traitée par le modèle local.
+    pub fn local_specs(&self) -> Vec<ToolSpec> {
+        self.tools
+            .iter()
+            .filter(|(_, tool)| tool.private() || tool.local())
+            .map(|(spec, _)| spec.clone())
+            .collect()
     }
 
     pub fn get(&self, name: &str) -> Option<&Arc<dyn Tool>> {

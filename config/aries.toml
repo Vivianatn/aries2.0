@@ -18,10 +18,12 @@ model = "local"
 # Désactivé tant que la variable `api_key_env` est vide dans `.env`.
 [llm.cloud]
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
-model = "gemini-2.5-flash"
+model = "gemini-3.5-flash"
 api_key_env = "GEMINI_API_KEY"
 # Pas de phase de réflexion : réponse plus rapide pour la conversation.
 reasoning_effort = "none"
+# Budget : requêtes cloud max par jour (chaque tour d'outil compte) ; au-delà, modèle local.
+daily_request_limit = 1000
 
 [memory]
 db_path = "data/aries.db"
@@ -48,6 +50,78 @@ search_results = 5
 page_max_chars = 6000
 # Allers-retours outils ↔ LLM par message ; le dernier tour force la réponse.
 max_rounds = 5
+
+# Serveurs MCP (HTTP) : leurs outils sont proposés au LLM, sous gouvernance.
+# Niveau de risque : `risks` s'il est donné, sinon annotations MCP (lecture seule → read,
+# non destructif → action, sinon danger).
+# Navigateur headless : service `playwright`, joint via le relais `browser-gateway`, sur un
+# réseau isolé d'ArIès, llama.cpp et Qdrant ; profil en mémoire, sans compte connecté.
+# Seuls les outils listés sont exposés (chaque outil coûte du contexte LLM).
+[[tools.mcp]]
+name = "browser"
+url = "http://browser-gateway:8931/mcp"
+tools = [
+    "browser_navigate", "browser_navigate_back", "browser_snapshot", "browser_click",
+    "browser_type", "browser_select_option", "browser_press_key", "browser_wait_for",
+    "browser_tabs", "browser_close",
+]
+output_max_chars = 6000
+[tools.mcp.risks]
+browser_navigate = "read"
+browser_navigate_back = "read"
+browser_snapshot = "read"
+browser_wait_for = "read"
+browser_tabs = "read"
+browser_close = "read"
+browser_click = "action"
+browser_type = "action"
+browser_select_option = "action"
+browser_press_key = "action"
+[tools.mcp.descriptions]
+browser_navigate = "Ouvre une URL dans un vrai navigateur (pages dynamiques en JavaScript, formulaires). Ne renvoie pas le contenu : appeler ensuite browser_snapshot. Pour simplement lire un article, préférer read_web_page."
+browser_snapshot = "Renvoie le contenu de la page ouverte (texte et éléments, chacun avec une référence ref=eNN pour browser_click ou browser_type). Appeler SANS argument pour avoir toute la page."
+
+# Notion (service `notion`). Les annotations du serveur marquent tout POST comme destructif
+# (même la recherche) : niveaux corrigés ici. Modifier ou supprimer reste exclu.
+[[tools.mcp]]
+name = "notion"
+url = "http://notion:3000/mcp"
+token_env = "NOTION_MCP_AUTH_TOKEN"
+tools = [
+    "API-post-search", "API-retrieve-page-markdown", "API-query-data-source",
+    "API-post-page", "API-patch-block-children",
+]
+output_max_chars = 6000
+[tools.mcp.risks]
+API-post-search = "read"
+API-retrieve-page-markdown = "read"
+API-query-data-source = "read"
+API-post-page = "action"
+API-patch-block-children = "action"
+
+# Gmail et Agenda (service `google`), option « mixte » : le cloud voit l'agenda et la liste
+# des mails (objet, expéditeur, date) ; le contenu d'un mail (`private`) n'est lu que par
+# le modèle local, et la conversation reste alors locale. `local` : outils proposés en plus
+# au modèle local (contexte de 8k tokens : liste courte).
+[[tools.mcp]]
+name = "google"
+url = "http://google:8000/mcp"
+tools = [
+    "search_gmail_messages", "get_gmail_message_content", "get_gmail_thread_content",
+    "draft_gmail_message", "send_gmail_message", "list_calendars", "get_events",
+    "manage_event",
+]
+private = ["get_gmail_message_content", "get_gmail_thread_content"]
+local = ["draft_gmail_message"]
+# Court : un mail privé est relu par le modèle local (~18 tokens/s en lecture).
+output_max_chars = 3000
+[tools.mcp.risks]
+send_gmail_message = "danger"
+manage_event = "danger"
+[tools.mcp.descriptions]
+search_gmail_messages = "Cherche des mails (syntaxe de recherche Gmail, ex. « is:unread newer_than:2d »). Toujours avec include_headers=true : renvoie objet, expéditeur et date, jamais le contenu."
+get_gmail_message_content = "Lit le contenu complet d'un mail. message_id doit venir d'un search_gmail_messages appelé pendant CE message (les identifiants des messages précédents ne sont pas conservés) : sinon, refaire la recherche. La conversation passe alors en mode privé (modèle local, réponses lentes) : ne l'appeler que si l'utilisateur veut vraiment le contenu."
+get_gmail_thread_content = "Lit le contenu complet d'un fil de mails. La conversation passe alors en mode privé (modèle local, réponses lentes) : ne l'appeler que si l'utilisateur veut vraiment le contenu."
 
 [governance]
 # Un appel d'outil par ligne (JSONL, ajout seul).

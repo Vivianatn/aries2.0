@@ -132,7 +132,7 @@ impl Memory {
             .vectors
             .search(FACTS, &query, RELATED_FACTS, RELATED_FACTS_MIN_SCORE, None)
             .await?;
-        let known = self.store.facts_by_ids(&known_ids).await?;
+        let known = self.store.facts_by_ids(&known_ids, true).await?;
         let known_list = if known.is_empty() {
             "(aucun)".to_owned()
         } else {
@@ -216,7 +216,11 @@ impl Memory {
 
         let mut fact_points = Vec::new();
         for ((id, content), vector) in updates.iter().zip(vectors.by_ref()) {
-            if self.store.update_fact(*id, content).await? {
+            if self
+                .store
+                .update_fact(*id, content, conversation_id)
+                .await?
+            {
                 fact_points.push((*id as u64, vector, json!({})));
             }
         }

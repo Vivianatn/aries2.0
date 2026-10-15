@@ -86,7 +86,7 @@ async fn agent(llm: Arc<ScriptedLlm>, risk: RiskLevel, name: &str) -> Arc<Agent>
         approval_timeout_secs: 5,
     };
     let audit = AuditLog::open(&path).await.unwrap();
-    Arc::new(Agent::new(llm, tools, audit, config, 2))
+    Arc::new(Agent::new(llm.clone(), llm, tools, audit, config, 2))
 }
 
 async fn collect(mut rx: mpsc::Receiver<AgentEvent>) -> Vec<AgentEvent> {
@@ -106,7 +106,10 @@ async fn calls_tool_then_answers() {
     let agent = agent(llm.clone(), RiskLevel::Read, "read").await;
     let (tx, rx) = mpsc::channel(32);
 
-    let answer = agent.run(vec![Message::user("vas-y")], 1, &tx).await;
+    let answer = agent
+        .run(vec![Message::user("vas-y")], 1, false, &tx)
+        .await
+        .text;
     drop(tx);
     let events = collect(rx).await;
 
@@ -130,7 +133,12 @@ async fn danger_tool_waits_for_approval() {
     let (tx, mut rx) = mpsc::channel(32);
 
     let runner = agent.clone();
-    let task = tokio::spawn(async move { runner.run(vec![Message::user("go")], 1, &tx).await });
+    let task = tokio::spawn(async move {
+        runner
+            .run(vec![Message::user("go")], 1, false, &tx)
+            .await
+            .text
+    });
 
     let approval_id = loop {
         match rx.recv().await.unwrap() {
@@ -156,7 +164,9 @@ async fn last_round_has_no_tools() {
     let agent = agent(llm.clone(), RiskLevel::Read, "rounds").await;
     let (tx, _rx) = mpsc::channel(32);
 
-    agent.run(vec![Message::user("boucle")], 1, &tx).await;
+    agent
+        .run(vec![Message::user("boucle")], 1, false, &tx)
+        .await;
 
     let tools: Vec<_> = llm
         .received
@@ -166,4 +176,66 @@ async fn last_round_has_no_tools() {
         .map(|(_, n)| *n)
         .collect();
     assert_eq!(tools, [1, 1, 0]);
+}
+
+struct Secret;
+
+#[async_trait]
+impl Tool for Secret {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec {
+            name: "echo".into(),
+            description: "lit un mail".into(),
+            parameters: json!({ "type": "object" }),
+        }
+    }
+
+    fn risk(&self) -> RiskLevel {
+        RiskLevel::Read
+    }
+
+    fn private(&self) -> bool {
+        true
+    }
+
+    async fn call(&self, _: Value) -> Result<String, ToolError> {
+        Ok("contenu confidentiel".into())
+    }
+}
+
+#[tokio::test]
+async fn private_result_never_reaches_cloud_llm() {
+    let cloud = ScriptedLlm::new(vec![vec![echo_call()]]);
+    let local = ScriptedLlm::new(vec![vec![ChatEvent::Text("résumé local".into())]]);
+    let path =
+        std::env::temp_dir().join(format!("aries-core-private-{}.jsonl", std::process::id()));
+    let mut tools = ToolRegistry::default();
+    tools.register(Secret);
+    let config = GovernanceConfig {
+        audit_path: path.clone(),
+        approval_timeout_secs: 5,
+    };
+    let audit = AuditLog::open(&path).await.unwrap();
+    let agent = Agent::new(cloud.clone(), local.clone(), tools, audit, config, 2);
+    let (tx, rx) = mpsc::channel(32);
+
+    let reply = agent.run(vec![Message::user("lis")], 1, false, &tx).await;
+    drop(tx);
+
+    assert_eq!(
+        reply,
+        Reply {
+            text: "résumé local".into(),
+            private: true
+        }
+    );
+    assert!(collect(rx).await.contains(&AgentEvent::PrivateMode {}));
+    assert_eq!(cloud.received.lock().unwrap().len(), 1);
+    let received = local.received.lock().unwrap();
+    assert!(
+        received[0]
+            .0
+            .iter()
+            .any(|m| m.content == "contenu confidentiel")
+    );
 }

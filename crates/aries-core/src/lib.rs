@@ -41,6 +41,8 @@ pub enum AgentEvent {
     Error {
         message: String,
     },
+    /// Un outil privé a répondu : la suite est traitée par le modèle local.
+    PrivateMode {},
 }
 
 impl AgentEvent {
@@ -51,12 +53,23 @@ impl AgentEvent {
             Self::ApprovalRequired { .. } => "approval_required",
             Self::ToolResult { .. } => "tool_result",
             Self::Error { .. } => "error",
+            Self::PrivateMode {} => "private_mode",
         }
     }
 }
 
+/// Réponse produite, même partielle en cas d'erreur.
+#[derive(Debug, Default, PartialEq)]
+pub struct Reply {
+    pub text: String,
+    /// La conversation contient désormais des données privées.
+    pub private: bool,
+}
+
 pub struct Agent {
     llm: Arc<dyn LlmProvider>,
+    /// Modèle local : seul autorisé à voir des données privées.
+    local: Arc<dyn LlmProvider>,
     tools: ToolRegistry,
     audit: AuditLog,
     approvals: Approvals,
@@ -67,6 +80,7 @@ pub struct Agent {
 impl Agent {
     pub fn new(
         llm: Arc<dyn LlmProvider>,
+        local: Arc<dyn LlmProvider>,
         tools: ToolRegistry,
         audit: AuditLog,
         config: GovernanceConfig,
@@ -74,6 +88,7 @@ impl Agent {
     ) -> Self {
         Self {
             llm,
+            local,
             tools,
             audit,
             approvals: Approvals::default(),
@@ -86,25 +101,35 @@ impl Agent {
         &self.approvals
     }
 
-    /// Répond à `messages` en relayant les événements ; renvoie tout le texte produit,
-    /// même partiel en cas d'erreur (signalée par un événement `Error`).
+    /// Répond à `messages` en relayant les événements (erreurs comprises). Une
+    /// conversation `private` n'est traitée que par le modèle local ; elle le devient
+    /// dès qu'un outil privé répond.
     pub async fn run(
         &self,
         mut messages: Vec<Message>,
         conversation_id: i64,
+        private: bool,
         events: &mpsc::Sender<AgentEvent>,
-    ) -> String {
-        let specs = self.tools.specs();
-        let mut answer = String::new();
+    ) -> Reply {
+        let (specs, local_specs) = (self.tools.specs(), self.tools.local_specs());
+        let mut reply = Reply {
+            text: String::new(),
+            private,
+        };
 
         for round in 0..=self.max_rounds {
+            let (llm, specs) = if reply.private {
+                (&self.local, &local_specs)
+            } else {
+                (&self.llm, &specs)
+            };
             // Dernier tour : plus d'outils, le modèle doit conclure.
             let tools = if round < self.max_rounds {
                 &specs[..]
             } else {
                 &[]
             };
-            let mut stream = match self.llm.chat_stream(messages.clone(), tools).await {
+            let mut stream = match llm.chat_stream(messages.clone(), tools).await {
                 Ok(stream) => stream,
                 Err(err) => {
                     tracing::error!(%err, "LLM indisponible");
@@ -115,7 +140,7 @@ impl Agent {
                         },
                     )
                     .await;
-                    return answer;
+                    return reply;
                 }
             };
 
@@ -137,23 +162,31 @@ impl Agent {
                             },
                         )
                         .await;
-                        answer.push_str(&text);
-                        return answer;
+                        reply.text.push_str(&text);
+                        return reply;
                     }
                 }
             }
-            answer.push_str(&text);
+            reply.text.push_str(&text);
             if calls.is_empty() || tools.is_empty() {
-                return answer;
+                return reply;
             }
 
             messages.push(Message::assistant_tool_calls(text, calls.clone()));
             for call in &calls {
                 let output = self.execute(call, conversation_id, events).await;
                 messages.push(Message::tool_result(&call.id, output));
+                let private_result = self
+                    .tools
+                    .get(&call.function.name)
+                    .is_some_and(|tool| tool.private());
+                if private_result && !reply.private {
+                    reply.private = true;
+                    emit(events, AgentEvent::PrivateMode {}).await;
+                }
             }
         }
-        answer
+        reply
     }
 
     /// Exécute un appel sous gouvernance ; le résultat (ou l'erreur) est pour le LLM.
