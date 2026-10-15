@@ -59,6 +59,10 @@ impl Tool for ReadWebPage {
         RiskLevel::Read
     }
 
+    fn local(&self) -> bool {
+        true
+    }
+
     async fn call(&self, arguments: Value) -> Result<String, ToolError> {
         let Arguments { url } = parse_arguments(arguments)?;
         let url = Url::parse(&url).map_err(|err| ToolError::InvalidArguments(err.to_string()))?;

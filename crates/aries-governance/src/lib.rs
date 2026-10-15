@@ -37,6 +37,8 @@ pub enum Decision {
     Rejected,
     /// Pas de réponse humaine dans le délai : refusé.
     Expired,
+    /// Tâche de fond, personne pour valider : refusé.
+    Unattended,
 }
 
 impl Decision {

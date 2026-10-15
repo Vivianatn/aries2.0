@@ -1,11 +1,9 @@
 //! Abstraction des fournisseurs de LLM : un trait unique, une implémentation par API.
 
-mod fallback;
 mod openai_compat;
 mod quota;
 mod tool_calls;
 
-pub use fallback::FallbackProvider;
 pub use openai_compat::{OpenAiCompatEmbedder, OpenAiCompatProvider};
 pub use quota::DailyQuota;
 

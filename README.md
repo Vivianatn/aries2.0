@@ -159,8 +159,10 @@ aries2.0/
   Il sert de secours au chat et fait les tâches de fond (consolidation de la mémoire).
 - **Cloud** (`[llm.cloud]`, Gemini 3.5 Flash par défaut ; 2.5 n'est plus ouvert aux nouveaux comptes) : répond au chat dès que sa clé
   est dans `.env` (100 tokens/s ou plus, premier mot en moins d'une seconde).
-  `FallbackProvider` bascule automatiquement sur le local si le cloud échoue avant de
-  répondre (réseau, quota, panne).
+  Si le cloud échoue avant de répondre (réseau, quota, panne), l'agent (`aries-core`)
+  continue le tour en local, avec seulement les outils `local` : la liste complète ne
+  tient pas dans les 8k tokens du modèle local. Niveau gratuit de Gemini : environ
+  20 requêtes par jour et par modèle (constaté le 15/10/2026).
 - **Routeur plus fin** (phase 3) : choisir local ou cloud selon la difficulté et la
   sensibilité de la demande.
 
@@ -186,8 +188,14 @@ Les embeddings sont calculés localement (ex. `bge-m3` ou `nomic-embed` via
   vérifiées puis corrigées si besoin.
 - **Sous-agents** : recherche web, analyse de documents et code tournent en
   parallèle (`tokio::spawn`), puis la synthèse est faite par l'agent principal.
-- **Tâches de fond** : « surveille le prix de X et préviens-moi » devient une
-  tâche persistante qui survit aux redémarrages.
+- **Tâches de fond** ✅ (`aries-proactive`) : « surveille le prix de X et préviens-moi »
+  devient une tâche persistante (`data/tasks.db`) qui survit aux redémarrages. Outils
+  `schedule_task` (une fois `at`, ou `cron` en heure locale via `croner`), `list_tasks`,
+  `cancel_task`. `reminder` envoie un message tel quel ; `agent` exécute une consigne dans
+  sa propre conversation, visible dans l'interface, et ne notifie que si la réponse n'est
+  pas « RIEN ». Ces tâches s'exécutent sans surveillance : les actions `action` sont
+  autorisées, les actions `danger` refusées. Une échéance manquée est rattrapée une fois.
+  Un échec est notifié.
 
 ### 4.4 Internet et outils : `aries-tools`
 
@@ -357,7 +365,7 @@ par règles seules), puis on passe Whisper en `small`.
 | **0. Socle** ✅ en ligne (3,8 tok/s avec Qwen3-8B) | Workspace Cargo, config, `llama.cpp` + modèle local, gateway axum, chat en streaming | Discuter avec ArIès en local |
 | **1. Mémoire** ✅ en ligne | Qdrant, SQLite, extraction de faits, rappel contextuel | ArIès se souvient de toi |
 | **2. Outils et web** 🚧 2b en cours | **2a** ✅ : boucle d'outils, SearXNG, lecture de pages, gouvernance (audit, validation). **2b** ✅ client MCP, navigateur headless (Playwright MCP), Notion, Gmail/Agenda, données privées → local, budget cloud | ArIès cherche et agit |
-| **3. Agent** | Planification, sous-agents, tâches de fond, routeur local/cloud | ArIès mène des tâches complexes |
+| **3. Agent** 🚧 3a fait | **3a** ✅ : tâches de fond persistantes (rappels, consignes en cron), bascule locale gérée par l'agent. **3b** : notifications Telegram. **3c** : planification, sous-agents, routeur | ArIès mène des tâches complexes |
 | **4. Voix** | Wake word, whisper.cpp, Piper (voix féminine jeune), streaming | « ArIès ? » … et elle répond |
 | **5. Proactivité** | Briefings, déclencheurs, Telegram | ArIès prend des initiatives |
 | **6. Finitions** | Interface selon la DA (§4.9) avec avatar, sauvegardes, monitoring, sécurité | Prêt pour le quotidien |

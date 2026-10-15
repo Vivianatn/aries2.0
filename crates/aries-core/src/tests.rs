@@ -86,7 +86,7 @@ async fn agent(llm: Arc<ScriptedLlm>, risk: RiskLevel, name: &str) -> Arc<Agent>
         approval_timeout_secs: 5,
     };
     let audit = AuditLog::open(&path).await.unwrap();
-    Arc::new(Agent::new(llm.clone(), llm, tools, audit, config, 2))
+    Arc::new(Agent::new(Some(llm.clone()), llm, tools, audit, config, 2))
 }
 
 async fn collect(mut rx: mpsc::Receiver<AgentEvent>) -> Vec<AgentEvent> {
@@ -107,7 +107,15 @@ async fn calls_tool_then_answers() {
     let (tx, rx) = mpsc::channel(32);
 
     let answer = agent
-        .run(vec![Message::user("vas-y")], 1, false, &tx)
+        .run(
+            vec![Message::user("vas-y")],
+            RunContext {
+                conversation_id: 1,
+                private: false,
+                interactive: true,
+            },
+            &tx,
+        )
         .await
         .text;
     drop(tx);
@@ -135,7 +143,15 @@ async fn danger_tool_waits_for_approval() {
     let runner = agent.clone();
     let task = tokio::spawn(async move {
         runner
-            .run(vec![Message::user("go")], 1, false, &tx)
+            .run(
+                vec![Message::user("go")],
+                RunContext {
+                    conversation_id: 1,
+                    private: false,
+                    interactive: true,
+                },
+                &tx,
+            )
             .await
             .text
     });
@@ -165,7 +181,15 @@ async fn last_round_has_no_tools() {
     let (tx, _rx) = mpsc::channel(32);
 
     agent
-        .run(vec![Message::user("boucle")], 1, false, &tx)
+        .run(
+            vec![Message::user("boucle")],
+            RunContext {
+                conversation_id: 1,
+                private: false,
+                interactive: true,
+            },
+            &tx,
+        )
         .await;
 
     let tools: Vec<_> = llm
@@ -216,19 +240,24 @@ async fn private_result_never_reaches_cloud_llm() {
         approval_timeout_secs: 5,
     };
     let audit = AuditLog::open(&path).await.unwrap();
-    let agent = Agent::new(cloud.clone(), local.clone(), tools, audit, config, 2);
+    let agent = Agent::new(Some(cloud.clone()), local.clone(), tools, audit, config, 2);
     let (tx, rx) = mpsc::channel(32);
 
-    let reply = agent.run(vec![Message::user("lis")], 1, false, &tx).await;
+    let reply = agent
+        .run(
+            vec![Message::user("lis")],
+            RunContext {
+                conversation_id: 1,
+                private: false,
+                interactive: true,
+            },
+            &tx,
+        )
+        .await;
     drop(tx);
 
-    assert_eq!(
-        reply,
-        Reply {
-            text: "résumé local".into(),
-            private: true
-        }
-    );
+    assert_eq!(reply.text, "résumé local");
+    assert!(reply.private);
     assert!(collect(rx).await.contains(&AgentEvent::PrivateMode {}));
     assert_eq!(cloud.received.lock().unwrap().len(), 1);
     let received = local.received.lock().unwrap();
@@ -238,4 +267,72 @@ async fn private_result_never_reaches_cloud_llm() {
             .iter()
             .any(|m| m.content == "contenu confidentiel")
     );
+}
+
+#[tokio::test]
+async fn danger_tool_is_refused_without_anyone_to_approve() {
+    let llm = ScriptedLlm::new(vec![vec![echo_call()], vec![ChatEvent::Text("ok".into())]]);
+    let agent = agent(llm.clone(), RiskLevel::Danger, "unattended").await;
+    let (tx, rx) = mpsc::channel(32);
+    let context = RunContext {
+        conversation_id: 1,
+        private: false,
+        interactive: false,
+    };
+
+    agent.run(vec![Message::user("go")], context, &tx).await;
+    drop(tx);
+
+    let events = collect(rx).await;
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::ApprovalRequired { .. }))
+    );
+    assert!(events.contains(&AgentEvent::ToolResult {
+        call_id: "c1".into(),
+        name: "echo".into(),
+        success: false,
+        decision: Decision::Unattended,
+    }));
+}
+
+struct Down;
+
+#[async_trait]
+impl LlmProvider for Down {
+    async fn chat_stream(&self, _: Vec<Message>, _: &[ToolSpec]) -> Result<ChatStream, LlmError> {
+        Err(LlmError::QuotaExceeded(0))
+    }
+
+    async fn complete(&self, _: Vec<Message>, _: CompletionOptions) -> Result<String, LlmError> {
+        unimplemented!()
+    }
+}
+
+#[tokio::test]
+async fn cloud_failure_falls_back_to_local_with_local_tools_only() {
+    let local = ScriptedLlm::new(vec![vec![ChatEvent::Text("réponse locale".into())]]);
+    let path = std::env::temp_dir().join(format!("aries-core-down-{}.jsonl", std::process::id()));
+    let mut tools = ToolRegistry::default();
+    tools.register(Echo(RiskLevel::Read));
+    let config = GovernanceConfig {
+        audit_path: path.clone(),
+        approval_timeout_secs: 5,
+    };
+    let audit = AuditLog::open(&path).await.unwrap();
+    let agent = Agent::new(Some(Arc::new(Down)), local.clone(), tools, audit, config, 2);
+    let (tx, _rx) = mpsc::channel(32);
+    let context = RunContext {
+        conversation_id: 1,
+        private: false,
+        interactive: true,
+    };
+
+    let reply = agent.run(vec![Message::user("salut")], context, &tx).await;
+
+    assert_eq!(reply.text, "réponse locale");
+    assert!(!reply.private && !reply.failed);
+    // `echo` n'est pas un outil local : le modèle local ne le voit pas.
+    assert_eq!(local.received.lock().unwrap()[0].1, 0);
 }

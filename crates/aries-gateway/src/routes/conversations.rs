@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use aries_llm::Role;
 use aries_memory::{Conversation, StoredMessage};
 use axum::{
     Json,
@@ -57,28 +56,20 @@ pub async fn post_message(
     if content.is_empty() {
         return Err(ApiError::bad_request("le message est vide"));
     }
-    let private = state
-        .memory
-        .conversation(id)
-        .await?
-        .ok_or_else(|| ApiError::not_found("conversation inconnue"))?
-        .private;
-
-    let guard = state.activity.begin();
-    state.memory.append_message(id, Role::User, content).await?;
-    // Souvenirs privés seulement pour le modèle local (conversation déjà privée).
-    let prompt = state
-        .memory
-        .build_prompt(id, &state.persona, private)
-        .await?;
+    ensure_exists(&state, id).await?;
 
     let (tx, rx) = mpsc::channel(EVENT_BUFFER);
-    let memory = state.memory.clone();
-    let agent = state.agent.clone();
+    let guard = state.activity.begin();
+    let content = content.to_owned();
     tokio::spawn(async move {
         let _guard = guard;
         let (agent_tx, mut agent_rx) = mpsc::channel(EVENT_BUFFER);
-        let run = async move { agent.run(prompt, id, private, &agent_tx).await };
+        let run = async move {
+            state
+                .agent
+                .reply(&state.memory, &state.persona, id, &content, true, &agent_tx)
+                .await
+        };
         let forward = async {
             while let Some(event) = agent_rx.recv().await {
                 let _ = tx.send(json_event(event.name(), &event)).await;
@@ -86,20 +77,15 @@ pub async fn post_message(
         };
         let (reply, ()) = tokio::join!(run, forward);
 
-        // Avant d'enregistrer la réponse : la consolidation doit la voir comme privée.
-        if reply.private && !private {
-            if let Err(err) = memory.mark_private(id).await {
-                tracing::error!(%err, "conversation privée non marquée");
+        let message_id = match reply {
+            Ok(reply) => reply.message_id,
+            Err(err) => {
+                tracing::error!(%err, "réponse impossible");
+                let _ = tx
+                    .send(json_event("error", &json!({ "message": err.to_string() })))
+                    .await;
+                None
             }
-        }
-        let message_id = if reply.text.trim().is_empty() {
-            None
-        } else {
-            memory
-                .append_message(id, Role::Assistant, &reply.text)
-                .await
-                .inspect_err(|err| tracing::error!(%err, "réponse non enregistrée"))
-                .ok()
         };
         let _ = tx
             .send(json_event("done", &json!({ "message_id": message_id })))

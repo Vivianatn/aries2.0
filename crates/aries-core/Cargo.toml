@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 aries-governance.workspace = true
 aries-llm.workspace = true
+aries-memory.workspace = true
 aries-tools.workspace = true
 
 futures.workspace = true

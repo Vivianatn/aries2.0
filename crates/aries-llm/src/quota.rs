@@ -1,5 +1,5 @@
 //! Plafond quotidien de requêtes (budget cloud) : au-delà, le fournisseur refuse, et
-//! `FallbackProvider` bascule sur le modèle local. Le compteur repart à zéro à minuit
+//! l'agent bascule sur le modèle local. Le compteur repart à zéro à minuit
 //! (heure locale) et à chaque redémarrage.
 
 use std::sync::{Arc, Mutex, PoisonError};

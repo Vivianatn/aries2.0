@@ -13,11 +13,14 @@ aries-core = { path = "crates/aries-core" }
 aries-governance = { path = "crates/aries-governance" }
 aries-llm = { path = "crates/aries-llm" }
 aries-memory = { path = "crates/aries-memory" }
+aries-proactive = { path = "crates/aries-proactive" }
 aries-tools = { path = "crates/aries-tools" }
 
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
+# Expressions cron (gère l'heure d'été), avec jiff.
+croner = { version = "4", default-features = false, features = ["jiff"] }
 dom_smoothie = "0.18"
 eventsource-stream = "0.2"
 futures = "0.3"

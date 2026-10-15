@@ -3,6 +3,7 @@ use std::{env, fs, net::SocketAddr, path::PathBuf};
 use anyhow::Context;
 use aries_governance::GovernanceConfig;
 use aries_memory::MemoryConfig;
+use aries_proactive::ProactiveConfig;
 use aries_tools::ToolsConfig;
 use serde::Deserialize;
 
@@ -19,6 +20,8 @@ pub struct Config {
     pub tools: ToolsConfig,
     #[serde(default)]
     pub governance: GovernanceConfig,
+    #[serde(default)]
+    pub proactive: ProactiveConfig,
 }
 
 #[derive(Debug, Deserialize)]

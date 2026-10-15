@@ -123,6 +123,11 @@ search_gmail_messages = "Cherche des mails (syntaxe de recherche Gmail, ex. « i
 get_gmail_message_content = "Lit le contenu complet d'un mail. message_id doit venir d'un search_gmail_messages appelé pendant CE message (les identifiants des messages précédents ne sont pas conservés) : sinon, refaire la recherche. La conversation passe alors en mode privé (modèle local, réponses lentes) : ne l'appeler que si l'utilisateur veut vraiment le contenu."
 get_gmail_thread_content = "Lit le contenu complet d'un fil de mails. La conversation passe alors en mode privé (modèle local, réponses lentes) : ne l'appeler que si l'utilisateur veut vraiment le contenu."
 
+[proactive]
+# Rappels et tâches de fond (persistants, exécutés sans surveillance : les actions
+# `danger` y sont refusées, les actions `action` autorisées).
+db_path = "data/tasks.db"
+
 [governance]
 # Un appel d'outil par ligne (JSONL, ajout seul).
 audit_path = "data/audit.jsonl"

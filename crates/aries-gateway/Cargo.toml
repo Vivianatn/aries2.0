@@ -15,6 +15,7 @@ aries-core.workspace = true
 aries-governance.workspace = true
 aries-llm.workspace = true
 aries-memory.workspace = true
+aries-proactive.workspace = true
 aries-tools.workspace = true
 
 anyhow.workspace = true

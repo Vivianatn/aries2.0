@@ -27,13 +27,14 @@ Critères : voir README §7. Une ligne par adoption.
 | Playwright MCP (image `mcr.microsoft.com/playwright/mcp`) | dernière | Apache-2.0 | Navigateur headless (Chromium) piloté par MCP. Remplace `chromiumoxide` : rien à coder. Service séparé, réseau isolé |
 | `@notionhq/notion-mcp-server` (image `node:22-alpine`, version figée) | 2.5.2 | MIT | Outils Notion (API officielle) en MCP HTTP. Le dépôt se dit « plus maintenu » au profit du MCP hébergé de Notion (OAuth), mais publié le 2026-09-20. Service séparé |
 | `google_workspace_mcp` (taylorwilsdon, construit depuis le commit `7897304`) | 2026-10-09 | MIT | Gmail et Agenda en MCP HTTP, mono-utilisateur, droits par niveau (`--permissions`). Service séparé, jeton OAuth dans le volume `google_creds` |
+| `croner` | 4 | MIT | Expressions cron et prochaine échéance, avec `jiff` (gère l'heure d'été). `tokio-cron-scheduler` (sans SQLite) et `apalis` (exige sqlx 0.9) écartés : stockage et boucle maison (~150 lignes) |
 | socat (image `alpine/socat`) | dernière | GPL-2.0 | Relais TCP entre ArIès et Playwright (isolation réseau). Service séparé |
 
 Écarté : `qdrant-client` (gRPC/tonic, compilation lourde). 5 appels REST via `reqwest`
 suffisent (`crates/aries-memory/src/vectors.rs`). Mem0 (Python) a servi de modèle pour la
 consolidation des faits, sans être intégré.
 
-Écarté pour l'instant : `async-openai` et `rig`. Le chat en streaming et les appels
+Écarté pour l'instant : `async-openai` et `rig` (réévalué en phase 3 : `rig-rmcp` dépend de rmcp 2, incompatible avec notre rmcp 3.5). Le chat en streaming et les appels
 d'outils (phase 2a) tiennent en ~150 lignes sur `reqwest` (`crates/aries-llm`), et la
 boucle d'agent avec gouvernance en ~250 (`crates/aries-core`). `rig` sera réévalué en
 phase 3 (planification, sous-agents).

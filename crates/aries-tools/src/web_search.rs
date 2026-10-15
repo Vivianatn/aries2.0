@@ -71,6 +71,10 @@ impl Tool for WebSearch {
         RiskLevel::Read
     }
 
+    fn local(&self) -> bool {
+        true
+    }
+
     async fn call(&self, arguments: Value) -> Result<String, ToolError> {
         let Arguments { query } = parse_arguments(arguments)?;
         let response = self
