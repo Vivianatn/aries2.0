@@ -396,7 +396,27 @@ html, body { margin: 0; height: 100%; background: var(--bg); }
 /* Niveau sonore piloté par le micro (--level de 0 à 1 sur chaque barre). */
 .aries-level.is-live span { animation: none !important; transform: scaleY(var(--level, 0.2)); transition: transform 90ms linear; }
 
-.msg-aries p { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Réponses en Markdown, dans les tokens de la DA (une famille, deux graisses, un accent). */
+.md { overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote, .md pre, .md table { margin: 0 0 var(--sp-3); }
+.md h1, .md h2, .md h3, .md h4 { margin: var(--sp-4) 0 var(--sp-2); font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+.md h3, .md h4 { font-size: var(--fs-base); }
+.md strong { font-weight: var(--fw-strong); color: var(--text); }
+.md ul, .md ol { padding-left: var(--sp-5); }
+.md li + li { margin-top: var(--sp-1); }
+.md li::marker { color: var(--text-3); }
+.md blockquote { padding-left: var(--sp-3); border-left: 2px solid var(--line-strong); color: var(--text-2); }
+.md code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.9em; background: var(--surface-2); border-radius: 4px; padding: 1px 5px; }
+.md pre { background: var(--surface-2); border: var(--bw) solid var(--line); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); overflow-x: auto; }
+.md pre code { background: none; padding: 0; font-size: var(--fs-sm); }
+.md hr { border: 0; border-top: var(--bw) solid var(--line); margin: var(--sp-4) 0; }
+.md table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: var(--fs-sm); }
+.md th, .md td { border: var(--bw) solid var(--line); padding: var(--sp-1) var(--sp-3); text-align: left; }
+.md th { font-weight: var(--fw-strong); background: var(--surface-2); }
+/* Phrase en cours de lecture à voix haute. */
+::highlight(aries-speaking) { background-color: var(--accent-wash); color: var(--text); }
 .msg-interrupted { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text-3); }
 .tool-line .tool-kind { white-space: nowrap; }
 .confirm-note { margin: 0; font-size: var(--fs-sm); color: var(--text-2); }

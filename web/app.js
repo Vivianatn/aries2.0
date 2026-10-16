@@ -169,7 +169,7 @@ const speech = {
   pending: 0,
   get busy() { return this.pending > 0; },
   say(text, onStart, onEnd) {
-    const clean = text.replace(/https?:\/\/\S+/g, 'le lien').replace(/[*#_`>|~]/g, '').replace(/\s+/g, ' ').trim();
+    const clean = plainText(text).replace(/https?:\/\/\S+/g, 'le lien');
     if (!/[\p{L}\p{N}]/u.test(clean)) return;
     const generation = this.generation;
     this.pending++;
@@ -213,72 +213,116 @@ const speech = {
 const SENTENCE = /^[\s\S]{20,}?(?:[.!?…:;]+(?=\s)|\n)/;
 function sentenceSplitter(onSentence) {
   let pending = '';
-  let offset = 0;
-  const emit = (sentence) => { onSentence(sentence, offset, offset + sentence.length); offset += sentence.length; };
   return {
     push(text) {
       pending += text;
       let match;
       while ((match = pending.match(SENTENCE))) {
-        emit(match[0]);
+        onSentence(match[0]);
         pending = pending.slice(match[0].length);
       }
     },
-    flush() { if (pending) emit(pending); pending = ''; },
+    flush() { if (pending) onSentence(pending); pending = ''; },
   };
 }
 
 // ---------- Fil de la conversation ----------
 
-const URL_RE = /https?:\/\/[^\s<>()"']+[^\s<>()"'.,;:!?]/g;
 const externalLink = (href, ...children) => h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, ...children);
 
-function linkify(text) {
-  const out = [];
-  let last = 0;
-  for (const match of text.matchAll(URL_RE)) {
-    out.push(text.slice(last, match.index), externalLink(match[0], match[0]));
-    last = match.index + match[0].length;
-  }
-  out.push(text.slice(last));
-  return out.filter((part) => part !== '');
+// Markdown des réponses : GFM (listes, tableaux, liens nus), retours à la ligne conservés.
+// Le HTML produit est nettoyé : une page lue par ArIès ne peut pas injecter de script ;
+// pas d'images (elles chargeraient un site tiers), liens ouverts dans un nouvel onglet.
+const markdownReady = Boolean(window.marked && window.DOMPurify);
+if (markdownReady) {
+  window.marked.setOptions({ gfm: true, breaks: true });
+  window.DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A') {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
 }
 
-/** Réponse d'ArIès : paragraphes, liens, curseur pendant l'écriture, phrase lue surlignée. */
+function renderMarkdown(text) {
+  if (!markdownReady) return h('p', { text });
+  const html = window.DOMPurify.sanitize(window.marked.parse(text), {
+    FORBID_TAGS: ['img', 'style', 'form', 'input', 'button', 'iframe'],
+    FORBID_ATTR: ['style'],
+  });
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  return template.content;
+}
+
+/** Texte lisible d'un morceau de Markdown (lecture à voix haute, recherche du surlignage). */
+const plainText = (markdown) => markdown
+  .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+  .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, '')
+  .replace(/[*_`~|]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const BLOCKS = new Set(['P', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'PRE', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH']);
+const canHighlight = 'highlights' in CSS && typeof Highlight === 'function';
+
+/** Réponse d'ArIès : Markdown, curseur pendant l'écriture, phrase lue surlignée. */
 class AriesMessage {
   constructor(text = '', streaming = true) {
     this.text = text;
     this.streaming = streaming;
-    this.highlight = null;
-    this.body = h('div');
+    this.spoken = null;
+    this.body = h('div', { class: 'md' });
     this.caret = h('span', { class: 'caret', 'aria-hidden': 'true' });
     this.el = h('div', { class: 'msg msg-aries' }, this.body);
     this.render();
   }
 
   append(text) { this.text += text; this.render(); }
-  setHighlight(range) { this.highlight = range; this.render(); }
   finish() { this.streaming = false; this.render(); }
 
-  render() {
-    const paragraphs = [];
-    let start = 0;
-    for (const part of this.text.split(/(\n{2,})/)) {
-      if (part && !/^\n+$/.test(part)) paragraphs.push(h('p', {}, this.segments(start, part)));
-      start += part.length;
-    }
-    if (!paragraphs.length) paragraphs.push(h('p'));
-    if (this.streaming) paragraphs.at(-1).append(this.caret);
-    this.body.replaceChildren(...paragraphs);
+  /** Phrase en cours de lecture (Markdown brut), ou `null`. */
+  setHighlight(sentence) {
+    this.spoken = sentence && plainText(sentence);
+    this.highlight();
   }
 
-  segments(start, text) {
-    const [from, to] = this.highlight ?? [0, 0];
-    const end = start + text.length;
-    if (to <= start || from >= end) return linkify(text);
-    const a = Math.max(from, start) - start;
-    const b = Math.min(to, end) - start;
-    return [...linkify(text.slice(0, a)), h('span', { class: 'is-current' }, linkify(text.slice(a, b))), ...linkify(text.slice(b))];
+  render() {
+    this.body.replaceChildren(renderMarkdown(this.text));
+    if (this.streaming) {
+      // Curseur à la fin du dernier bloc de texte (paragraphe, élément de liste…).
+      let node = this.body;
+      while (node.lastElementChild && BLOCKS.has(node.lastElementChild.tagName)) node = node.lastElementChild;
+      node.append(this.caret);
+    }
+    if (this.spoken) this.highlight();
+  }
+
+  /** Surligne la phrase lue sans toucher au DOM (CSS Custom Highlight API). */
+  highlight() {
+    if (!canHighlight) return;
+    CSS.highlights.delete('aries-speaking');
+    if (!this.spoken) return;
+    // Texte affiché, espaces regroupés, avec la position d'origine de chaque caractère.
+    let flat = '';
+    const map = [];
+    const walker = document.createTreeWalker(this.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      for (let i = 0; i < node.data.length; i++) {
+        const space = /\s/.test(node.data[i]);
+        if (space && (!flat || flat.endsWith(' '))) continue;
+        flat += space ? ' ' : node.data[i];
+        map.push([node, i]);
+      }
+    }
+    const start = flat.indexOf(this.spoken);
+    if (start < 0) return;
+    const [startNode, startOffset] = map[start];
+    const [endNode, endOffset] = map[start + this.spoken.length - 1];
+    const range = new Range();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset + 1);
+    CSS.highlights.set('aries-speaking', new Highlight(range));
   }
 }
 
@@ -582,8 +626,8 @@ async function ask(text, spoken, alive) {
           segment = lastAnswer = message;
           ui.log.append(message.el);
           if (spoken) {
-            splitter = sentenceSplitter((sentence, from, to) =>
-              speech.say(sentence, () => message.setHighlight([from, to]), () => message.setHighlight(null)));
+            splitter = sentenceSplitter((sentence) =>
+              speech.say(sentence, () => message.setHighlight(sentence), () => message.setHighlight(null)));
           }
         }
         segment.append(data.text);

@@ -9,6 +9,9 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/source-sans-3-latin-400.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="aries.css">
+  <!-- Markdown (marked, MIT) puis nettoyage du HTML (DOMPurify) : servis ici, sans CDN. -->
+  <script src="vendor/marked.umd.js" defer></script>
+  <script src="vendor/purify.min.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body class="aries-ui">

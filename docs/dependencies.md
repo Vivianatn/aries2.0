@@ -20,6 +20,8 @@ Critères : voir README §7. Une ligne par adoption.
 | `reqwest` (fonction `multipart`) | 0.13 | MIT/Apache-2.0 | Envoi de l'audio à `whisper-server` |
 | `bytes` | 1 | MIT | Audio transmis sans copie entre axum et reqwest |
 | Source Sans 3 (woff2 latin 400 et 600, via `@fontsource/source-sans-3`) | 5.2.9 | OFL-1.1 (`web/fonts/OFL.txt`) | Police de la DA, auto-hébergée : pas de Google Fonts (transfert d'IP à un tiers, RGPD) |
+| marked (`web/vendor/marked.umd.js`) | 18.0.14 | MIT | Markdown des réponses dans le chat (GFM : listes, tableaux, liens). Servi par ArIès, sans CDN |
+| DOMPurify (`web/vendor/purify.min.js`) | 3.4.16 | MPL-2.0 ou Apache-2.0 | Nettoie le HTML issu du Markdown : une page lue par ArIès ne peut pas injecter de script ; images interdites (pas de requête vers un tiers) |
 | `tower-http` (fonction `set-header`) | 0.6 | MIT | En-têtes de sécurité : CSP, Referrer-Policy, Permissions-Policy |
 | `serde`, `serde_json`, `toml` | 1 / 1 / 0.8 | MIT/Apache-2.0 | (Dé)sérialisation, configuration |
 | `thiserror`, `anyhow` | 2 / 1 | MIT/Apache-2.0 | Erreurs (lib / binaire) |
