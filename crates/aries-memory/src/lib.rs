@@ -104,6 +104,19 @@ impl Memory {
             .await
     }
 
+    /// Efface une conversation et ses souvenirs (SQLite + index vectoriel). `false` si
+    /// elle n'existait pas.
+    pub async fn delete_conversation(&self, id: i64) -> Result<bool, MemoryError> {
+        let Some(episodes) = self.store.delete_conversation(id).await? else {
+            return Ok(false);
+        };
+        let ids: Vec<u64> = episodes.into_iter().map(|id| id as u64).collect();
+        if !ids.is_empty() {
+            self.vectors.delete(EPISODES, &ids).await?;
+        }
+        Ok(true)
+    }
+
     /// Définitif : la conversation ne sera plus traitée que par le modèle local.
     pub async fn mark_private(&self, conversation_id: i64) -> Result<(), MemoryError> {
         self.store.mark_private(conversation_id).await

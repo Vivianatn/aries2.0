@@ -220,6 +220,18 @@ Les embeddings sont calculés localement (ex. `bge-m3` ou `nomic-embed` via
 - Objectif de latence : **moins de 1,5 s** entre la fin de ta phrase et le début de
   la réponse parlée (streaming du LLM vers le TTS phrase par phrase).
 
+**4a ✅ (bouton)** : le bouton 🎙 de l'interface enregistre (MediaRecorder, un clic pour
+commencer, un pour envoyer). L'audio part à `POST /api/v1/transcriptions`, puis à
+`whisper-server` (service `stt`, `ggml-small-q5_1`, `-l fr`, 2 threads, ffmpeg via
+`--convert`). Le texte devient un message normal. La réponse est ensuite lue : le navigateur
+la coupe en phrases pendant qu'elle arrive, et chaque phrase passe par
+`POST /api/v1/syntheses`, puis par Piper (service `tts`, voix `fr_FR-siwis-medium`, à
+changer avec `PIPER_VOICE`). Les phrases sont jouées dans l'ordre. Un nouveau clic sur le
+micro coupe la lecture. Deux appels REST suffisent ici. Le WebSocket `/api/v1/ws` est
+gardé pour un vrai flux audio continu, s'il devient nécessaire. **4b** : mot d'éveil
+« ArIès » détecté dans le navigateur (openWakeWord en ONNX/WASM) : aucun audio n'est
+envoyé avant le mot d'éveil.
+
 ### 4.6 Proactivité : `aries-proactive`
 
 C'est ce qui fait la différence entre un chatbot et Jarvis :
@@ -268,11 +280,32 @@ une seule porte d'entrée est protégée :
   port entrant n'est nécessaire.
 - Mises à jour de sécurité automatiques (`unattended-upgrades`).
 
-### 4.9 Identité et direction artistique (à concevoir)
+### 4.9 Identité et direction artistique ✅
 
-L'interface actuelle (`web/index.html`) est un chat fonctionnel, sans identité. ArIès doit
-devenir **quelqu'un** : une présence avec une forme physique, et pas seulement une bulle
-de texte avec un point lumineux.
+ArIès doit être **quelqu'un** : une présence avec une forme physique, et pas seulement une
+bulle de texte avec un point lumineux.
+
+**Fait** : la DA a été produite par Claude Design (accent ambre doux, Source Sans 3).
+L'interface en est la mise en œuvre : `web/index.html` (avatar SVG à 10 états), `web/aries.css`
+(tokens et composants, repris tels quels) et `web/app.js` (logique, sans framework). L'état
+de l'avatar découle de ce qui se passe : écoute, transcription, validation en attente,
+parole, outil, réflexion, erreur, mode privé. Les maquettes et le prompt sont dans
+`docs/prompt-claude-design.md`. L'écran de veille vocal (classe `.veille`, déjà dans
+`aries.css`) sera branché avec le mot d'éveil (phase 4b).
+
+**RGPD et vie privée de l'interface** :
+- **Aucun tiers** : la police est servie par ArIès (`web/fonts`, OFL), sans Google Fonts, CDN
+  ni traceur. Une CSP stricte (`script-src 'self'`, `connect-src 'self'`…) l'impose côté
+  navigateur, avec `Referrer-Policy: no-referrer` et un `Permissions-Policy` qui limite le
+  micro à ce site.
+- **Pas de cookie** : seul l'identifiant de la conversation en cours est gardé en
+  `localStorage`. Il est strictement nécessaire, donc aucun bandeau de consentement n'est requis.
+- **Transparence** (art. 13) : la section « Tes données » du panneau Mémoire dit ce qui est
+  stocké, ce qui part vers le modèle cloud (nommé) et comment l'effacer.
+- **Effacement** (art. 17) : un fait depuis la Mémoire, une conversation entière (messages,
+  souvenirs et vecteurs Qdrant) depuis l'Historique.
+- **Micro** : il ne s'active que sur un clic, et l'écoute est toujours visible. L'audio ne
+  quitte pas le serveur, et les fichiers temporaires de whisper sont en RAM (`tmpfs`).
 
 #### Qui est ArIès
 
@@ -366,7 +399,7 @@ par règles seules), puis on passe Whisper en `small`.
 | **1. Mémoire** ✅ en ligne | Qdrant, SQLite, extraction de faits, rappel contextuel | ArIès se souvient de toi |
 | **2. Outils et web** 🚧 2b en cours | **2a** ✅ : boucle d'outils, SearXNG, lecture de pages, gouvernance (audit, validation). **2b** ✅ client MCP, navigateur headless (Playwright MCP), Notion, Gmail/Agenda, données privées → local, budget cloud | ArIès cherche et agit |
 | **3. Agent** 🚧 3a fait | **3a** ✅ : tâches de fond persistantes (rappels, consignes en cron), bascule locale gérée par l'agent. **3b** : notifications Telegram. **3c** : planification, sous-agents, routeur | ArIès mène des tâches complexes |
-| **4. Voix** | Wake word, whisper.cpp, Piper (voix féminine jeune), streaming | « ArIès ? » … et elle répond |
+| **4. Voix** 🚧 4a fait | **4a** ✅ : bouton micro, whisper.cpp, Piper, lecture phrase par phrase. **4b** : mot d'éveil dans le navigateur | « ArIès ? » … et elle répond |
 | **5. Proactivité** | Briefings, déclencheurs, Telegram | ArIès prend des initiatives |
 | **6. Finitions** | Interface selon la DA (§4.9) avec avatar, sauvegardes, monitoring, sécurité | Prêt pour le quotidien |
 
@@ -444,7 +477,7 @@ Prérequis DNS : chez le registrar, créer l'enregistrement
 ```bash
 cp .env.example .env
 sed -i "s/^SEARXNG_SECRET=.*/SEARXNG_SECRET=$(openssl rand -hex 32)/" .env   # clé interne SearXNG
-bash deploy/download-models.sh        # ~5 Go (Qwen3-8B Q4_K_M par défaut)
+bash deploy/download-models.sh        # ~5,5 Go (Qwen3-8B Q4_K_M, bge-m3, Whisper small, voix Piper)
 docker compose up -d --build
 docker compose logs -f llm            # vitesse réelle : ligne "eval time … tokens per second"
 # Interface : https://aries.antoine-vivian.fr (mot de passe demandé par le navigateur)
@@ -465,12 +498,18 @@ docker run --rm -v /opt/aries:/src -v aries-cargo-registry:/usr/local/cargo/regi
 
 | Méthode | Route | Rôle |
 |---|---|---|
-| `GET` | `/api/v1/health` | État et version |
+| `GET` | `/api/v1/health` | État, version et `voice` (micro disponible) |
 | `GET` / `POST` | `/api/v1/conversations` | Lister (50 dernières) / créer une conversation |
+| `GET` / `DELETE` | `/api/v1/conversations/{id}` | Une conversation (`private` compris) / l'effacer avec ses souvenirs (204) |
 | `GET` | `/api/v1/conversations/{id}/messages` | Historique d'une conversation |
-| `POST` | `/api/v1/conversations/{id}/messages` | `{"content":"…"}` → flux SSE : `token` `{"text"}`, `tool_call` `{"call_id","name","arguments"}`, `approval_required` `{"approval_id","call_id","name","arguments"}`, `tool_result` `{"call_id","name","success","decision"}`, `private_mode` `{}` (passage au modèle local), `error`, `done` `{"message_id"}` |
+| `POST` | `/api/v1/conversations/{id}/messages` | `{"content":"…"}` → flux SSE : `token` `{"text"}`, `tool_call` `{"call_id","name","arguments"}`, `approval_required` `{"approval_id","call_id","name","arguments","expires_in_secs"}`, `tool_result` `{"call_id","name","success","decision"}`, `private_mode` `{}` (passage au modèle local), `error`, `done` `{"message_id"}` |
 | `GET` | `/api/v1/memory-facts` | Faits retenus sur l'utilisateur |
 | `DELETE` | `/api/v1/memory-facts/{id}` | Oublier un fait |
+| `GET` | `/api/v1/tasks` | Tâches et rappels planifiés (prochaine échéance) |
+| `DELETE` | `/api/v1/tasks/{id}` | Annuler une tâche (204, ou 404 si déjà terminée) |
+| `GET` | `/api/v1/notifications` | 30 derniers messages des tâches de fond (rappels, résultats, échecs) |
+| `POST` | `/api/v1/transcriptions` | Corps : audio brut (`Content-Type` du navigateur, 4 Mo max) → `{"text"}` ; 503 `voice_disabled` sans section `[voice]` |
+| `POST` | `/api/v1/syntheses` | `{"text":"…"}` (1 000 caractères max) → `audio/wav` |
 | `PUT` | `/api/v1/tool-approvals/{id}` | `{"approved": true\|false}` : valider ou refuser une action `danger` (204, ou 404 si expirée) |
 
 ### Mémoire : comment ça marche

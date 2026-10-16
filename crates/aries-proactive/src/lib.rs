@@ -4,7 +4,7 @@
 mod store;
 mod tools;
 
-pub use store::{Task, TaskKind, TaskStore};
+pub use store::{Notification, Task, TaskKind, TaskStore};
 pub use tools::{CancelTask, ListTasks, ScheduleTask, local_time};
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
@@ -168,7 +168,12 @@ impl Scheduler {
 
     /// Consigne exécutée dans la conversation de la tâche (visible dans l'interface).
     async fn run_agent(&self, task: &Task) -> Result<Reply, ProactiveError> {
-        let conversation_id = match task.conversation_id {
+        // La conversation a pu être effacée depuis l'historique : on en recrée une.
+        let existing = match task.conversation_id {
+            Some(id) => self.memory.conversation(id).await?.map(|c| c.id),
+            None => None,
+        };
+        let conversation_id = match existing {
             Some(id) => id,
             None => {
                 let id = self.memory.create_conversation().await?.id;

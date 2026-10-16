@@ -30,6 +30,31 @@ pub async fn create(
     ))
 }
 
+pub async fn get(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Conversation>, ApiError> {
+    state
+        .memory
+        .conversation(id)
+        .await?
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("conversation inconnue"))
+}
+
+/// Droit à l'effacement : messages et souvenirs de la conversation (les faits retenus
+/// restent visibles dans la Mémoire, où ils s'effacent un par un).
+pub async fn delete(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    if state.memory.delete_conversation(id).await? {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::not_found("conversation inconnue"))
+    }
+}
+
 pub async fn messages(
     State(state): State<AppState>,
     Path(id): Path<i64>,

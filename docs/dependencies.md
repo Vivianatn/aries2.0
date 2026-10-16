@@ -13,6 +13,14 @@ Critères : voir README §7. Une ligne par adoption.
 | `eventsource-stream` | 0.2 | MIT/Apache-2.0 | Décodage des flux SSE des LLM |
 | `futures` | 0.3 | MIT/Apache-2.0 | Combinateurs de flux |
 | `async-trait` | 0.1 | MIT/Apache-2.0 | Trait `LlmProvider` utilisable en `dyn` |
+| whisper.cpp (image `ghcr.io/ggml-org/whisper.cpp:main`, `whisper-server`) | dernière | MIT | Reconnaissance vocale sur CPU, `--convert` (ffmpeg) pour l'audio du navigateur. Service séparé |
+| Whisper `ggml-small-q5_1` | — | MIT | Modèle STT multilingue (~190 Mo), bon compromis vitesse/qualité en français sur CPU |
+| Piper (`piper-tts[http]`, OHF-Voice/piper1-gpl) | 1.8.0 | GPL-3.0 | Synthèse vocale locale et rapide. GPL : conteneur à part (`deploy/piper`), appelé en HTTP |
+| Voix Piper `fr_FR-siwis-medium` | — | MIT (modèle), données CC-BY 4.0 | Voix française par défaut (une locutrice) ; `fr_FR-upmc-medium` (locuteurs jessica/pierre) en alternative |
+| `reqwest` (fonction `multipart`) | 0.13 | MIT/Apache-2.0 | Envoi de l'audio à `whisper-server` |
+| `bytes` | 1 | MIT | Audio transmis sans copie entre axum et reqwest |
+| Source Sans 3 (woff2 latin 400 et 600, via `@fontsource/source-sans-3`) | 5.2.9 | OFL-1.1 (`web/fonts/OFL.txt`) | Police de la DA, auto-hébergée : pas de Google Fonts (transfert d'IP à un tiers, RGPD) |
+| `tower-http` (fonction `set-header`) | 0.6 | MIT | En-têtes de sécurité : CSP, Referrer-Policy, Permissions-Policy |
 | `serde`, `serde_json`, `toml` | 1 / 1 / 0.8 | MIT/Apache-2.0 | (Dé)sérialisation, configuration |
 | `thiserror`, `anyhow` | 2 / 1 | MIT/Apache-2.0 | Erreurs (lib / binaire) |
 | `tracing`, `tracing-subscriber` | 0.1 / 0.3 | MIT | Logs structurés |

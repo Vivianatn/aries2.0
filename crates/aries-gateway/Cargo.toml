@@ -17,6 +17,7 @@ aries-llm.workspace = true
 aries-memory.workspace = true
 aries-proactive.workspace = true
 aries-tools.workspace = true
+aries-voice.workspace = true
 
 anyhow.workspace = true
 axum.workspace = true

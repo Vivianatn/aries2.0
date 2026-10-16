@@ -128,6 +128,15 @@ get_gmail_thread_content = "Lit le contenu complet d'un fil de mails. La convers
 # `danger` y sont refusées, les actions `action` autorisées).
 db_path = "data/tasks.db"
 
+[voice]
+# Micro de l'interface → whisper.cpp (service `stt`) ; réponses lues par Piper (service `tts`).
+# Tout reste sur le serveur. Supprimer la section pour désactiver la voix.
+stt_url = "http://stt:8080"
+tts_url = "http://tts:5000"
+language = "fr"
+# Débit de parole : moins de 1 parle plus vite.
+length_scale = 0.95
+
 [governance]
 # Un appel d'outil par ligne (JSONL, ajout seul).
 audit_path = "data/audit.jsonl"

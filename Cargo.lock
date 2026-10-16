@@ -59,6 +59,7 @@ dependencies = [
  "aries-memory",
  "aries-proactive",
  "aries-tools",
+ "aries-voice",
  "axum",
  "futures",
  "serde",
@@ -142,6 +143,20 @@ dependencies = [
  "futures",
  "reqwest",
  "rmcp",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "aries-voice"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bytes",
+ "reqwest",
  "serde",
  "serde_json",
  "thiserror",
@@ -2060,6 +2075,7 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",

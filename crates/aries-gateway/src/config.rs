@@ -5,6 +5,7 @@ use aries_governance::GovernanceConfig;
 use aries_memory::MemoryConfig;
 use aries_proactive::ProactiveConfig;
 use aries_tools::ToolsConfig;
+use aries_voice::VoiceConfig;
 use serde::Deserialize;
 
 const DEFAULT_CONFIG_PATH: &str = "config/aries.toml";
@@ -22,6 +23,8 @@ pub struct Config {
     pub governance: GovernanceConfig,
     #[serde(default)]
     pub proactive: ProactiveConfig,
+    /// Absente : pas de micro ni de lecture à voix haute dans l'interface.
+    pub voice: Option<VoiceConfig>,
 }
 
 #[derive(Debug, Deserialize)]

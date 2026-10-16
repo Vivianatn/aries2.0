@@ -1,0 +1,415 @@
+/* =====================================================================
+   ArIès — feuille de style unique (tokens + avatar + interface)
+   Servie en /aries.css par web/index.html.
+   Aucune dépendance. Police : Source Sans 3 (OFL), auto-hébergée
+   (web/fonts, 400 + 600) ; repli système humaniste sinon.
+   ===================================================================== */
+
+/* ---------- 1. Tokens ---------- */
+:root {
+  /* Fonds : anthracite chaud, du plus profond au plus proche */
+  --bg: #141312;            /* la pièce */
+  --surface: #1C1A18;       /* panneaux, colonne avatar */
+  --surface-2: #24211E;     /* bulles, champs */
+  --surface-3: #2D2925;     /* survol, carte de validation */
+  --line: #36312C;          /* séparateurs décoratifs */
+  --line-strong: #736A61;   /* bordures de champs : 3,2:1 sur --surface */
+
+  /* Textes : blanc cassé */
+  --text: #EDE7DF;          /* 14,1:1 sur --surface */
+  --text-2: #B8B0A5;        /*  8,1:1 */
+  --text-3: #958D83;        /*  5,3:1 — jamais sur --surface-3 */
+
+  /* Accent unique (recommandé) : ambre doux */
+  --accent: #D2A679;        /*  7,8:1 sur --surface */
+  --accent-strong: #E2BC93; /* survol */
+  --accent-ink: #1B1611;    /* texte sur accent : 8,1:1 */
+  --accent-wash: rgba(210, 166, 121, 0.10);
+  --accent-line: rgba(210, 166, 121, 0.45);
+
+  /* Sémantique (désaturé, jamais criard) */
+  --ok: #A3BC9A;
+  --err: #E09C86;
+  --err-wash: rgba(224, 156, 134, 0.08);
+  --private-bg: #19181B;    /* la pièce « se ferme » : plus sombre, plus froide */
+
+  /* Avatar : peau, cheveux, tenue */
+  --skin: #C79A80;
+  --skin-shade: #A87B64;
+  --skin-light: #DDB59B;
+  --hair: #2E221C;
+  --hair-light: #4A372D;
+  --cloth: #2A2826;
+  --cloth-light: #3A3734;
+  --iris: #5B4335;
+  --lip: #A0665A;
+
+  /* Typographie : une famille, deux graisses */
+  --font: "Source Sans 3", "Segoe UI", "Noto Sans", Ubuntu, "Helvetica Neue", sans-serif;
+  --fw-regular: 400;
+  --fw-strong: 600;
+  --fs-xs: 0.8125rem;   /* 13 — méta, horodatage */
+  --fs-sm: 0.875rem;    /* 14 — lignes d'outil, libellés */
+  --fs-base: 1rem;      /* 16 — messages */
+  --fs-lg: 1.125rem;    /* 18 — titres de panneau */
+  --fs-xl: 1.5rem;      /* 24 — accueil */
+  --fs-2xl: 2.25rem;    /* 36 — veille */
+  --lh-tight: 1.25;
+  --lh-base: 1.55;
+
+  /* Espacements (base 4) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  /* Rayons et bordures */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px; --r-pill: 999px;
+  --bw: 1px;
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* Mouvement : lent, organique */
+  --dur-fast: 160ms;    /* survol, focus */
+  --dur: 280ms;         /* apparition d'un élément */
+  --dur-pose: 700ms;    /* changement d'état de l'avatar */
+  --dur-breath: 6s;     /* respiration */
+  --dur-blink: 7s;      /* cycle de clignement */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-soft: cubic-bezier(0.45, 0.05, 0.35, 1);
+}
+
+/* Alternative : bleu acier (non retenue) — remplacer ces 4 lignes */
+.theme-steel {
+  --accent: #9DB2C4; --accent-strong: #B6C8D6; --accent-ink: #14181C;
+  --accent-wash: rgba(157, 178, 196, 0.10); --accent-line: rgba(157, 178, 196, 0.45);
+}
+
+/* ---------- 2. Base ---------- */
+.aries-ui, .aries-ui * { box-sizing: border-box; }
+.aries-ui {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+.aries-ui :focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-sm); }
+.aries-ui a { color: var(--accent); text-underline-offset: 3px; }
+.aries-ui a:hover { color: var(--accent-strong); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.btn {
+  font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-strong);
+  min-height: 44px; padding: 0 var(--sp-4);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  border-radius: var(--r-md); border: var(--bw) solid var(--line-strong);
+  background: transparent; color: var(--text); cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.btn:hover { background: var(--surface-3); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
+.btn-ghost { border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover { color: var(--text); }
+.btn-icon { width: 44px; padding: 0; }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.icon-sm { width: 16px; height: 16px; }
+
+/* ---------- 3. Avatar ---------- */
+/* L'état se pose sur .aries : data-state="idle|listening|transcribing|thinking|tool|speaking|awaiting|private|error|happy" */
+.aries { position: relative; width: 100%; aspect-ratio: 240 / 280; }
+.aries svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.aries .ar-anim { transform-box: view-box; }
+
+/* Respiration : tout le buste, 6 s, amplitude 1,2 px */
+.aries .ar-breathe { animation: ar-breathe var(--dur-breath) var(--ease-soft) infinite; transform-origin: 120px 280px; }
+@keyframes ar-breathe { 0%, 100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-1.2px) scale(1.004); } }
+
+/* Pose de la tête : chaque état tourne/incline doucement */
+.aries .ar-head { transform-origin: 120px 175px; transition: transform var(--dur-pose) var(--ease-soft); }
+/* Regard : translation des iris */
+.aries .ar-gaze { transition: transform var(--dur-pose) var(--ease-soft); }
+/* Paupières : clignement rare (1 fois / 7 s), double clignement à 40 % */
+.aries .ar-eye { transform-box: fill-box; transform-origin: center; animation: ar-blink var(--dur-blink) linear infinite; }
+@keyframes ar-blink { 0%, 38%, 41.5%, 95%, 100% { transform: scaleY(1); } 39.5%, 97% { transform: scaleY(0.08); } }
+/* Paupière supérieure (ouverture) */
+.aries .ar-lid { transform-box: fill-box; transform-origin: center bottom; transition: transform var(--dur-pose) var(--ease-soft); transform: translateY(0); }
+/* Sourcils */
+.aries .ar-brow { transform-box: fill-box; transform-origin: center; transition: transform var(--dur-pose) var(--ease-soft); }
+/* Bouche */
+.aries .ar-mouth-open { transform-box: fill-box; transform-origin: center top; transform: scaleY(0); transition: transform 240ms var(--ease-soft); }
+.aries .ar-smile { opacity: 0; transition: opacity var(--dur-pose) var(--ease-soft); }
+.aries .ar-lips { transition: opacity var(--dur-pose) var(--ease-soft); }
+/* Lumière : voile (mode privé), reflet d'écran (outil) */
+.aries .ar-veil { opacity: 0; transition: opacity 1.2s var(--ease-soft); }
+.aries .ar-screenlight { opacity: 0; transition: opacity var(--dur-pose) var(--ease-soft); }
+/* Détail d'interface : ligne du col + oreillette */
+.aries .ar-signal { stroke: var(--accent); opacity: 0.35; transition: opacity var(--dur-pose) var(--ease-soft), stroke var(--dur-pose) var(--ease-soft); }
+.aries .ar-ear-led { fill: var(--accent); opacity: 0.35; transition: opacity var(--dur-pose) var(--ease-soft), fill var(--dur-pose) var(--ease-soft); }
+
+/* Indicateur de niveau sonore (écoute) — 5 barres sobres sous l'avatar */
+.aries-level { display: flex; gap: 4px; justify-content: center; align-items: flex-end; height: 18px; opacity: 0; transition: opacity var(--dur) var(--ease-out); }
+.aries-level span { width: 3px; height: 100%; border-radius: 2px; background: var(--accent); transform-origin: bottom; transform: scaleY(0.2); }
+.aries[data-state="listening"] + .aries-level, .aries-level.is-on { opacity: 1; }
+.aries[data-state="listening"] + .aries-level span { animation: ar-level 1.4s var(--ease-soft) infinite; }
+.aries-level span:nth-child(2) { animation-delay: -0.3s !important; }
+.aries-level span:nth-child(3) { animation-delay: -0.7s !important; }
+.aries-level span:nth-child(4) { animation-delay: -0.2s !important; }
+.aries-level span:nth-child(5) { animation-delay: -0.9s !important; }
+@keyframes ar-level { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(0.85); } }
+/* En production : piloter par le vrai niveau micro → style="--level: .6" et transform: scaleY(var(--level)) */
+
+/* --- États --- */
+/* Écoute : tête légèrement penchée vers Vivian, yeux bien ouverts, sourcils hauts */
+.aries[data-state="listening"] .ar-head { transform: rotate(-2.5deg) translateY(1px); }
+.aries[data-state="listening"] .ar-brow { transform: translateY(-1.5px); }
+.aries[data-state="listening"] .ar-signal, .aries[data-state="listening"] .ar-ear-led { opacity: 0.9; }
+
+/* Transcrit : regard bas-gauche, un instant (« elle relit ») */
+.aries[data-state="transcribing"] .ar-head { transform: rotate(-1deg) translateY(1px); }
+.aries[data-state="transcribing"] .ar-gaze { transform: translate(-1.5px, 1.6px); }
+.aries[data-state="transcribing"] .ar-lid { transform: translateY(1.2px); }
+.aries[data-state="transcribing"] .ar-ear-led { opacity: 0.9; }
+
+/* Réfléchit : regard haut-droite, tête qui part de 3°, dérive lente 5 s */
+.aries[data-state="thinking"] .ar-head { transform: rotate(3deg) translateX(1px); }
+.aries[data-state="thinking"] .ar-gaze { transform: translate(2.6px, -2.2px); animation: ar-ponder 5s var(--ease-soft) infinite; }
+.aries[data-state="thinking"] .ar-brow-r { transform: translateY(-2px) rotate(-4deg); }
+@keyframes ar-ponder { 0%, 100% { transform: translate(2.6px, -2.2px); } 50% { transform: translate(1.4px, -2.6px); } }
+
+/* Outil : tournée vers un écran hors champ (gauche), reflet doux sur la joue */
+.aries[data-state="tool"] .ar-head { transform: rotate(-3deg) translateX(-2px); }
+.aries[data-state="tool"] .ar-gaze { transform: translate(-3px, 0.4px); }
+.aries[data-state="tool"] .ar-lid { transform: translateY(0.8px); }
+.aries[data-state="tool"] .ar-screenlight { opacity: 1; animation: ar-screen 4s var(--ease-soft) infinite; }
+.aries[data-state="tool"] .ar-signal { opacity: 0.8; }
+@keyframes ar-screen { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
+
+/* Parle : bouche simple, rythme par phrase (JS bascule .is-sentence entre phrases) */
+.aries[data-state="speaking"] .ar-mouth-open { animation: ar-talk 1.1s var(--ease-soft) infinite; }
+.aries[data-state="speaking"] .ar-brow { transform: translateY(-0.6px); }
+.aries[data-state="speaking"] .ar-signal { opacity: 0.7; }
+@keyframes ar-talk { 0%, 100% { transform: scaleY(0.15); } 18% { transform: scaleY(0.75); } 34% { transform: scaleY(0.3); } 52% { transform: scaleY(0.9); } 70% { transform: scaleY(0.2); } 84% { transform: scaleY(0.6); } }
+.aries[data-state="speaking"].is-pause .ar-mouth-open { animation: none; transform: scaleY(0); }
+
+/* Attend ta validation : face, regard droit, sourcils légèrement hauts et immobiles. La respiration ralentit. */
+.aries[data-state="awaiting"] .ar-head { transform: rotate(0deg); }
+.aries[data-state="awaiting"] .ar-brow { transform: translateY(-1.8px); }
+.aries[data-state="awaiting"] .ar-breathe { animation-duration: 9s; }
+.aries[data-state="awaiting"] .ar-signal, .aries[data-state="awaiting"] .ar-ear-led { opacity: 1; }
+
+/* Mode privé : la lumière baisse, voile et vignette, paupières un peu basses, regard bienveillant */
+.aries[data-state="private"] .ar-veil { opacity: 1; }
+.aries[data-state="private"] .ar-head { transform: rotate(1deg) translateY(0.5px); }
+.aries[data-state="private"] .ar-lid { transform: translateY(1.5px); }
+.aries[data-state="private"] .ar-signal { opacity: 0; }
+.aries[data-state="private"] .ar-ear-led { opacity: 0.15; }
+.aries[data-state="private"] .ar-breathe { animation-duration: 8s; }
+
+/* Erreur : gênée mais calme — regard bas, sourcils internes relevés, tête inclinée */
+.aries[data-state="error"] .ar-head { transform: rotate(-2deg) translateY(1.5px); }
+.aries[data-state="error"] .ar-gaze { transform: translate(-0.8px, 1.8px); }
+.aries[data-state="error"] .ar-brow-l { transform: translateY(-1px) rotate(6deg); }
+.aries[data-state="error"] .ar-brow-r { transform: translateY(-1px) rotate(-6deg); }
+.aries[data-state="error"] .ar-signal { stroke: var(--err); opacity: 0.6; }
+.aries[data-state="error"] .ar-ear-led { fill: var(--err); opacity: 0.8; }
+
+/* Contente (réactions Telegram uniquement) */
+.aries[data-state="happy"] .ar-smile { opacity: 1; }
+.aries[data-state="happy"] .ar-lips { opacity: 0; }
+.aries[data-state="happy"] .ar-lid { transform: translateY(1px); }
+.aries[data-state="happy"] .ar-head { transform: rotate(-1.5deg); }
+
+/* Mouvement réduit : on garde les poses (essentielles), on coupe toutes les boucles */
+@media (prefers-reduced-motion: reduce) {
+  .aries *, .aries-level span { animation: none !important; transition-duration: 1ms !important; }
+  .aries[data-state="speaking"] .ar-mouth-open { transform: scaleY(0.5); }
+  .aries[data-state="listening"] + .aries-level span:nth-child(odd) { transform: scaleY(0.6); }
+}
+
+/* ---------- 4. Mise en page de l'application ---------- */
+.app-shell { container-type: inline-size; container-name: app; }
+.app { display: flex; flex-direction: column; background: var(--bg); color: var(--text); overflow: hidden; position: relative; }
+.app[data-mode="private"] { background: var(--private-bg); transition: background 1.2s var(--ease-soft); }
+
+.topbar { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-bottom: var(--bw) solid var(--line); min-height: 60px; }
+.brand { display: flex; align-items: center; gap: var(--sp-3); margin-right: auto; font-weight: var(--fw-strong); letter-spacing: 0.01em; }
+.brand-mark { width: 28px; height: 28px; }
+.topbar .btn-label { display: inline; }
+
+.stage { flex: 1; display: flex; min-height: 0; }
+.presence { flex: 0 0 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-4); padding: var(--sp-6) var(--sp-5); background: var(--surface); border-right: var(--bw) solid var(--line); position: relative; }
+.presence-avatar { width: 100%; max-width: 280px; }
+.presence-name { font-size: var(--fs-lg); font-weight: var(--fw-strong); margin: 0; }
+.presence-status { margin: 0; color: var(--text-2); font-size: var(--fs-sm); display: flex; align-items: center; gap: var(--sp-2); min-height: 24px; }
+.presence-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+.presence-dot.is-active { background: var(--accent); }
+.presence-dot.is-err { background: var(--err); }
+.presence-text { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+.chat { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.messages-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column-reverse; }
+.messages { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* Accueil (état vide) */
+.welcome { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-8) 0 var(--sp-6); }
+.welcome h1 { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+.welcome p { margin: 0; color: var(--text-2); }
+.suggestions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+.chip { font: inherit; font-size: var(--fs-sm); min-height: 40px; padding: 0 var(--sp-4); border-radius: var(--r-pill); border: var(--bw) solid var(--line-strong); background: transparent; color: var(--text-2); cursor: pointer; }
+.chip:hover { color: var(--text); background: var(--surface-2); }
+
+/* Messages */
+.msg { max-width: 100%; animation: msg-in var(--dur) var(--ease-out); }
+@keyframes msg-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.msg-user { align-self: flex-end; max-width: 82%; background: var(--surface-2); border-radius: var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg); padding: var(--sp-3) var(--sp-4); white-space: pre-wrap; }
+.msg-aries { align-self: flex-start; max-width: 92%; padding: 0 var(--sp-1); }
+.msg-aries p { margin: 0 0 var(--sp-2); }
+.msg-aries p:last-child { margin-bottom: 0; }
+.msg-aries .is-current { background: var(--accent-wash); border-radius: 4px; box-shadow: 0 0 0 3px var(--accent-wash); }
+.caret { display: inline-block; width: 2px; height: 1.05em; vertical-align: -0.15em; margin-left: 2px; background: var(--accent); }
+.sources { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: var(--bw) solid var(--line); display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); font-size: var(--fs-sm); color: var(--text-3); }
+.sources a { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+
+/* Ligne d'outil */
+.tool-line { align-self: flex-start; display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-2); padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-2); border-radius: var(--r-sm); max-width: 100%; }
+.tool-line .tool-kind { color: var(--text); font-weight: var(--fw-strong); }
+.tool-line .tool-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-line .tool-status { margin-left: var(--sp-1); display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); }
+.tool-line .is-ok { color: var(--ok); }
+.tool-line .is-fail { color: var(--err); }
+.tool-line .is-refused { color: var(--text-3); }
+.tool-line .is-run { color: var(--accent); }
+.tool-line.is-run .tool-ic { color: var(--accent); }
+.tool-ic { color: var(--text-3); display: inline-flex; }
+.run-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: run-dot 2.4s var(--ease-soft) infinite; }
+@keyframes run-dot { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* Demande de validation (action danger) */
+.confirm { align-self: stretch; background: var(--surface-3); border: var(--bw) solid var(--accent-line); border-radius: var(--r-lg); padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-4); }
+.confirm-head { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.confirm-head .icon { color: var(--accent); margin-top: 2px; }
+.confirm-title { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-strong); line-height: var(--lh-tight); }
+.confirm-sub { margin: 2px 0 0; color: var(--text-2); font-size: var(--fs-sm); }
+.confirm-preview { background: var(--bg); border-radius: var(--r-md); padding: var(--sp-4); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-4); font-size: var(--fs-sm); }
+.confirm-preview dt { color: var(--text-3); }
+.confirm-preview dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.confirm-preview .body { grid-column: 1 / -1; margin-top: var(--sp-2); padding-top: var(--sp-3); border-top: var(--bw) solid var(--line); color: var(--text-2); white-space: pre-wrap; }
+.confirm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.confirm-timer { margin-left: auto; font-size: var(--fs-xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.confirm.is-done { border-color: var(--line); background: var(--surface-2); }
+
+/* Bandeau mode privé */
+.private-banner { align-self: stretch; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--surface); border: var(--bw) solid var(--line); font-size: var(--fs-sm); color: var(--text-2); }
+.private-banner .icon { color: var(--text); }
+.private-banner strong { color: var(--text); font-weight: var(--fw-strong); }
+.private-banner .grow { flex: 1 1 220px; min-width: 0; }
+
+/* Erreur */
+.msg-error { align-self: stretch; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--err-wash); border: var(--bw) solid rgba(224, 156, 134, 0.35); font-size: var(--fs-sm); color: var(--text-2); }
+.msg-error .icon { color: var(--err); }
+.msg-error strong { color: var(--text); }
+.msg-error .grow { flex: 1 1 220px; min-width: 0; }
+
+/* Zone de saisie */
+.composer-wrap { padding: var(--sp-3) var(--sp-5) var(--sp-5); }
+.composer { max-width: 760px; margin: 0 auto; display: flex; align-items: flex-end; gap: var(--sp-2); background: var(--surface-2); border: var(--bw) solid var(--line-strong); border-radius: var(--r-lg); padding: var(--sp-2); transition: border-color var(--dur-fast) var(--ease-out); }
+.composer:focus-within { border-color: var(--accent); }
+.composer textarea { flex: 1; min-width: 0; resize: none; border: 0; background: transparent; color: var(--text); font: inherit; line-height: 1.5; padding: 10px var(--sp-2); min-height: 44px; max-height: 200px; }
+.composer textarea:focus-visible { box-shadow: none; outline: none; }
+.composer textarea::placeholder { color: var(--text-3); }
+.composer .btn-icon { border-radius: var(--r-md); }
+.composer .mic.is-rec { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.composer-live { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: 44px; padding: 0 var(--sp-2); color: var(--text-2); font-size: var(--fs-sm); }
+.composer-live .aries-level { opacity: 1; height: 16px; }
+.composer-live .aries-level span { animation: ar-level 1.4s var(--ease-soft) infinite; }
+.composer-hint { max-width: 760px; margin: var(--sp-2) auto 0; font-size: var(--fs-xs); color: var(--text-3); text-align: center; }
+
+/* Panneaux latéraux (Mémoire, Tâches, Historique) */
+.drawer-backdrop { position: absolute; inset: 0; background: rgba(8, 7, 6, 0.55); z-index: 5; }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100%; background: var(--surface); border-left: var(--bw) solid var(--line); z-index: 6; display: flex; flex-direction: column; animation: drawer-in var(--dur) var(--ease-out); }
+@keyframes drawer-in { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.drawer-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5); border-bottom: var(--bw) solid var(--line); }
+.drawer-head h2 { margin: 0 auto 0 0; font-size: var(--fs-lg); font-weight: var(--fw-strong); }
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--sp-4) var(--sp-5) var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-3); }
+.drawer-intro { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--text-2); }
+.section-label { margin: var(--sp-4) 0 0; font-size: var(--fs-xs); font-weight: var(--fw-strong); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.item { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4); background: var(--surface-2); border-radius: var(--r-md); }
+.item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.item-title { color: var(--text); }
+.item-meta { font-size: var(--fs-xs); color: var(--text-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.item-meta .tag { color: var(--text-2); border: var(--bw) solid var(--line-strong); border-radius: var(--r-pill); padding: 0 8px; }
+.item.is-current { background: var(--surface-3); }
+.notif { border-left: 0; display: flex; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-sm); }
+.notif .icon { color: var(--accent); margin-top: 2px; }
+.empty { text-align: center; padding: var(--sp-7) var(--sp-4); color: var(--text-2); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: var(--sp-2); align-items: center; }
+.empty .icon { width: 28px; height: 28px; color: var(--text-3); }
+
+/* Écran de veille vocal */
+.veille { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-5); background: #0F0E0D; padding: var(--sp-6) var(--sp-4); text-align: center; }
+.veille .presence-avatar { max-width: 420px; }
+.veille-hint { margin: 0; color: var(--text-3); font-size: var(--fs-base); }
+.veille-time { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-regular); color: var(--text-2); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.veille .aries { opacity: 0.88; }
+
+/* ---------- 5. Mobile : dès 360 px ---------- */
+@container app (max-width: 760px) {
+  .topbar { padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); min-height: 52px; gap: 0; }
+  .topbar .btn-label { display: none; }
+  .topbar .btn { width: 44px; padding: 0; }
+  .stage { flex-direction: column; }
+  .presence { flex: none; flex-direction: row; justify-content: flex-start; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4); border-right: 0; border-bottom: var(--bw) solid var(--line); }
+  .presence-avatar { width: 64px; flex: none; border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); }
+  .presence-avatar .aries-level { display: none; }
+  .presence-avatar .aries { transform: scale(1.9) translateY(15%); transform-origin: 50% 28%; }
+  .presence-text { align-items: flex-start; }
+  .presence-name { font-size: var(--fs-base); }
+  .presence-status { font-size: var(--fs-xs); min-height: 18px; }
+  .presence-level-inline { display: flex !important; margin-left: auto; }
+  .messages { padding: var(--sp-4) var(--sp-3) var(--sp-3); }
+  .welcome { padding: var(--sp-6) 0 var(--sp-4); }
+  .composer-wrap { padding: var(--sp-2) var(--sp-3) var(--sp-3); }
+  .composer-hint { display: none; }
+  .msg-user { max-width: 88%; }
+  .confirm { padding: var(--sp-4); }
+  .drawer { width: 100%; border-left: 0; }
+  .veille .presence-avatar { width: 240px; overflow: visible; background: none; }
+  .veille .presence-avatar .aries { transform: none; }
+}
+.presence-level-inline { display: none; }
+
+/* ---------- 6. Intégration (web/index.html) ---------- */
+/* Police servie par ArIès lui-même : aucune requête vers un tiers (RGPD). */
+@font-face { font-family: "Source Sans 3"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/source-sans-3-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "Source Sans 3"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/source-sans-3-latin-600.woff2") format("woff2"); }
+
+html, body { margin: 0; height: 100%; background: var(--bg); }
+[hidden] { display: none !important; }
+.app-shell { height: 100dvh; }
+.app { height: 100%; }
+/* Sur mobile (colonne), seule la conversation défile : bandeau et saisie restent visibles. */
+.chat { min-height: 0; }
+.brand-mark { color: var(--accent); }
+.presence-avatar { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* Niveau sonore piloté par le micro (--level de 0 à 1 sur chaque barre). */
+.aries-level.is-live span { animation: none !important; transform: scaleY(var(--level, 0.2)); transition: transform 90ms linear; }
+
+.msg-aries p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-interrupted { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text-3); }
+.tool-line .tool-kind { white-space: nowrap; }
+.confirm-note { margin: 0; font-size: var(--fs-sm); color: var(--text-2); }
+.confirm-preview dt, .confirm-preview dd { min-width: 0; }
+
+/* Panneaux : listes cliquables et actions discrètes. */
+.item-open { all: unset; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; cursor: pointer; border-radius: var(--r-sm); }
+.item-open:focus-visible { box-shadow: var(--focus); }
+.item .btn { min-height: 36px; }
+.drawer-body > .btn-primary { width: 100%; }
+.notif-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.notif-text { color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.notif.is-fail .icon { color: var(--err); }
+.privacy { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: var(--bw) solid var(--line); font-size: var(--fs-sm); color: var(--text-2); display: flex; flex-direction: column; gap: var(--sp-2); }
+.privacy p { margin: 0; }
+.privacy strong { color: var(--text); font-weight: var(--fw-strong); }

@@ -11,6 +11,7 @@ use aries_llm::{DailyQuota, LlmProvider, OpenAiCompatProvider};
 use aries_memory::{ActivityGauge, Memory};
 use aries_proactive::{LogNotifier, Scheduler, TaskStore};
 use aries_tools::ToolRegistry;
+use aries_voice::Voice;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
@@ -36,6 +37,10 @@ async fn main() -> anyhow::Result<()> {
         None,
     )?);
     let cloud_llm = cloud_provider(config.llm.cloud.as_ref())?;
+    let cloud_model = cloud_llm
+        .as_ref()
+        .and(config.llm.cloud.as_ref())
+        .map(|cloud| cloud.model.clone());
 
     let memory = Arc::new(
         Memory::connect(config.memory.clone())
@@ -72,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
 
     let persona: Arc<str> = persona.into();
     Scheduler {
-        store: tasks,
+        store: tasks.clone(),
         agent: agent.clone(),
         memory: memory.clone(),
         persona: persona.clone(),
@@ -81,11 +86,21 @@ async fn main() -> anyhow::Result<()> {
     }
     .spawn();
 
+    let voice = config
+        .voice
+        .as_ref()
+        .map(|voice| Voice::new(voice).map(Arc::new))
+        .transpose()?;
+    tracing::info!(enabled = voice.is_some(), "voix");
+
     let state = AppState {
         agent,
         memory,
         activity,
         persona,
+        voice,
+        tasks,
+        cloud_model,
     };
     let app = routes::router(state, &config.server.web_dir);
 

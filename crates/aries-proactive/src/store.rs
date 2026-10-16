@@ -166,6 +166,30 @@ impl TaskStore {
         tx.commit().await?;
         Ok(())
     }
+
+    /// Dernières exécutions qui ont produit un message (rappel, résultat ou échec).
+    pub async fn notifications(&self, limit: i64) -> Result<Vec<Notification>, ProactiveError> {
+        Ok(sqlx::query_as(
+            "SELECT r.id, r.task_id, t.title, t.kind, r.success, r.output AS message, r.finished_at
+             FROM task_runs r JOIN tasks t ON t.id = r.task_id
+             WHERE r.output <> ? ORDER BY r.id DESC LIMIT ?",
+        )
+        .bind(crate::NOTHING)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct Notification {
+    pub id: i64,
+    pub task_id: i64,
+    pub title: String,
+    pub kind: TaskKind,
+    pub success: bool,
+    pub message: String,
+    pub finished_at: String,
 }
 
 #[cfg(test)]
@@ -209,6 +233,19 @@ mod tests {
             .record_run(soon, now, true, "envoyé", None)
             .await
             .unwrap();
+        store
+            .record_run(soon, now, true, crate::NOTHING, None)
+            .await
+            .unwrap();
+        let notifications = store.notifications(10).await.unwrap();
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(
+            (
+                notifications[0].title.as_str(),
+                notifications[0].message.as_str()
+            ),
+            ("appeler maman", "envoyé")
+        );
         assert!(store.due(now).await.unwrap().is_empty());
         assert_eq!(store.active().await.unwrap().len(), 1);
         assert_eq!(

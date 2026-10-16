@@ -164,6 +164,35 @@ services:
     mem_limit: 384m
     restart: unless-stopped
 
+  # Reconnaissance vocale (whisper.cpp, MIT). `--convert` : ffmpeg (présent dans l'image)
+  # accepte le WebM/Opus ou le MP4 enregistré par le navigateur. Aucun port publié.
+  stt:
+    image: ghcr.io/ggml-org/whisper.cpp:main
+    command:
+      - >-
+        whisper-server --host 0.0.0.0 --port 8080 --convert --tmp-dir /tmp -t 2 -l fr
+        -m /models/${WHISPER_MODEL_FILE:-ggml-small-q5_1.bin}
+    volumes:
+      - ./models:/models:ro
+    # Fichiers audio temporaires en RAM seulement : rien n'est écrit sur le disque.
+    tmpfs:
+      - /tmp
+    cpus: 2
+    mem_limit: 1g
+    restart: unless-stopped
+
+  # Synthèse vocale (Piper, GPL-3.0 : service séparé). Voix française, modèle dans ./models.
+  tts:
+    build: deploy/piper
+    command:
+      - -m
+      - /models/${PIPER_VOICE:-fr_FR-siwis-medium}.onnx
+    volumes:
+      - ./models:/models:ro
+    cpus: 1
+    mem_limit: 512m
+    restart: unless-stopped
+
   aries:
     build: .
     env_file:
@@ -183,6 +212,8 @@ services:
       - browser-gateway
       - notion
       - google
+      - stt
+      - tts
     restart: unless-stopped
 
 networks:

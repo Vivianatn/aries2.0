@@ -3,265 +3,220 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#141312">
   <title>ArIès</title>
-  <style>
-    :root { --bg: #070b14; --panel: #0e1626; --line: #1d2b45; --text: #d8e6ff; --muted: #7f93b8; --accent: #4fc3ff; --danger: #ff8a8a; }
-    * { box-sizing: border-box; }
-    body { margin: 0; height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, sans-serif; }
-    header { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
-    header .core { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
-    header .core.busy { animation: pulse 1s ease-in-out infinite; }
-    @keyframes pulse { 50% { opacity: .3; } }
-    header h1 { margin: 0; font-size: 18px; letter-spacing: .15em; flex: 1; }
-    .ghost { background: none; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: 14px; }
-    .ghost:hover { color: var(--text); border-color: var(--accent); }
-    #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; width: 100%; margin: 0 auto; }
-    .msg { padding: 10px 14px; border-radius: 10px; white-space: pre-wrap; max-width: 85%; overflow-wrap: anywhere; }
-    .user { align-self: flex-end; background: #16365a; }
-    .assistant { align-self: flex-start; background: var(--panel); border: 1px solid var(--line); }
-    .error { color: var(--danger); }
-    .tool { align-self: flex-start; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 85%; font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 4px 10px; overflow-wrap: anywhere; }
-    .tool.failed { color: var(--danger); }
-    .tool button { font: inherit; border-radius: 6px; padding: 2px 10px; cursor: pointer; border: 1px solid var(--line); background: none; color: var(--text); }
-    .tool button.allow { background: var(--accent); color: #04121f; border-color: var(--accent); }
-    .hint { color: var(--muted); text-align: center; margin: auto; }
-    form { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); max-width: 860px; width: 100%; margin: 0 auto; }
-    textarea { flex: 1; resize: none; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
-    #send { background: var(--accent); color: #04121f; border: 0; border-radius: 8px; padding: 0 18px; font-weight: 600; cursor: pointer; }
-    #send:disabled { opacity: .5; cursor: default; }
-    #memory { position: fixed; inset: 0 0 0 auto; width: min(420px, 100%); background: var(--panel); border-left: 1px solid var(--line); padding: 16px; overflow-y: auto; transform: translateX(100%); transition: transform .2s; }
-    #memory.open { transform: none; }
-    #memory h2 { margin: 0 0 4px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
-    #memory p { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
-    #memory ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
-    #memory li { display: flex; gap: 8px; align-items: flex-start; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px; }
-    #memory li span { flex: 1; }
-    #memory li button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
-    #memory li button:hover { color: var(--danger); }
-  </style>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/source-sans-3-latin-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="aries.css">
+  <script src="app.js" defer></script>
 </head>
-<body>
-  <header>
-    <div class="core" id="core"></div>
-    <h1>ARIÈS</h1>
-    <button class="ghost" id="new-chat" type="button">Nouvelle conversation</button>
-    <button class="ghost" id="open-memory" type="button">Mémoire</button>
-  </header>
-  <main id="log"></main>
-  <form id="form">
-    <textarea id="input" rows="2" placeholder="Parle à ArIès… (Entrée pour envoyer)" autofocus></textarea>
-    <button id="send">Envoyer</button>
-  </form>
-  <aside id="memory" aria-label="Mémoire">
-    <h2>Ce qu'ArIès sait de toi <button class="ghost" id="close-memory" type="button">Fermer</button></h2>
-    <p>Retenu automatiquement après chaque conversation (2 min d'inactivité). Supprime ce qui est faux.</p>
-    <ul id="facts"></ul>
-  </aside>
-  <script>
-    const STORAGE_KEY = 'aries.conversationId';
-    const $ = (id) => document.getElementById(id);
-    const log = $('log'), form = $('form'), input = $('input'), send = $('send'), core = $('core');
-    let conversationId = null;
+<body class="aries-ui">
+  <!-- Icônes (trait 1,6, couleur du texte) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-mark" viewBox="0 0 24 24"><path d="M6 21C6 9.5 8.7 4 12 4s6 5.5 6 17M8.3 14.6h7.4" stroke-width="2"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5v4h4M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7zM14 3v4h4M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5 12 13l8.5-6.5"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+    <symbol id="i-tool" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V13M12 16.5v.01"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3"/></symbol>
+  </svg>
 
-    const storage = {
-      get() { try { return localStorage.getItem(STORAGE_KEY); } catch { return null; } },
-      set(value) { try { value ? localStorage.setItem(STORAGE_KEY, value) : localStorage.removeItem(STORAGE_KEY); } catch {} },
-    };
+  <div class="app-shell">
+    <div class="app" id="app">
+      <header class="topbar" id="topbar">
+        <div class="brand">
+          <svg class="icon brand-mark" aria-hidden="true"><use href="#i-mark"/></svg>
+          <span>ArIès</span>
+        </div>
+        <button class="btn btn-ghost" type="button" data-drawer="history" aria-label="Historique">
+          <svg class="icon" aria-hidden="true"><use href="#i-history"/></svg><span class="btn-label">Historique</span>
+        </button>
+        <button class="btn btn-ghost" type="button" data-drawer="tasks" aria-label="Tâches et rappels">
+          <svg class="icon" aria-hidden="true"><use href="#i-bell"/></svg><span class="btn-label">Tâches</span>
+        </button>
+        <button class="btn btn-ghost" type="button" data-drawer="memory" aria-label="Mémoire">
+          <svg class="icon" aria-hidden="true"><use href="#i-memory"/></svg><span class="btn-label">Mémoire</span>
+        </button>
+        <button class="btn" type="button" id="new-chat" aria-label="Nouvelle conversation">
+          <svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg><span class="btn-label">Nouvelle</span>
+        </button>
+      </header>
 
-    async function api(path, options = {}) {
-      const res = await fetch(`/api/v1${path}`, { headers: { 'Content-Type': 'application/json' }, ...options });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const err = new Error(body.error?.message ?? `HTTP ${res.status}`);
-        err.status = res.status;
-        throw err;
-      }
-      return res;
-    }
+      <div class="stage" id="stage">
+        <aside class="presence" aria-label="ArIès">
+          <div class="presence-avatar">
+            <div class="aries" id="avatar" data-state="idle">
+              <svg viewBox="0 0 240 280" role="img" aria-label="ArIès, au repos" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="ar-skin-g" gradientUnits="userSpaceOnUse" x1="78" y1="70" x2="166" y2="120">
+                    <stop offset="0" style="stop-color: var(--skin-light)"/>
+                    <stop offset="0.5" style="stop-color: var(--skin)"/>
+                    <stop offset="1" style="stop-color: var(--skin-shade)"/>
+                  </linearGradient>
+                  <linearGradient id="ar-hair-g" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" style="stop-color: var(--hair-light)"/>
+                    <stop offset="0.6" style="stop-color: var(--hair)"/>
+                  </linearGradient>
+                  <linearGradient id="ar-cloth-g" gradientUnits="userSpaceOnUse" x1="20" y1="200" x2="220" y2="280">
+                    <stop offset="0" style="stop-color: var(--cloth-light)"/>
+                    <stop offset="1" style="stop-color: var(--cloth)"/>
+                  </linearGradient>
+                  <radialGradient id="ar-veil-g" cx="0.5" cy="0.42" r="0.72">
+                    <stop offset="0" stop-color="#0d0c10" stop-opacity="0.18"/>
+                    <stop offset="1" stop-color="#0d0c10" stop-opacity="0.72"/>
+                  </radialGradient>
+                  <linearGradient id="ar-screen-g" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" style="stop-color: var(--accent)" stop-opacity="0.28"/>
+                    <stop offset="1" style="stop-color: var(--accent)" stop-opacity="0"/>
+                  </linearGradient>
+                  <clipPath id="ar-clip-l"><ellipse cx="103" cy="108" rx="8" ry="4.3"/></clipPath>
+                  <clipPath id="ar-clip-r"><ellipse cx="137" cy="108" rx="8" ry="4.3"/></clipPath>
+                </defs>
+                <g class="ar-breathe">
+                  <path d="M14 280 C 18 238, 44 216, 84 206 L 98 200 L 142 200 L 156 206 C 196 216, 222 238, 226 280 Z" fill="url(#ar-cloth-g)"/>
+                  <path d="M62 222 C 74 234, 80 254, 82 280" stroke="#000" stroke-opacity="0.22" stroke-width="1.2" fill="none"/>
+                  <path d="M178 222 C 166 234, 160 254, 158 280" stroke="#000" stroke-opacity="0.22" stroke-width="1.2" fill="none"/>
+                  <path d="M104 146 L 104 192 C 112 198, 128 198, 136 192 L 136 146 Z" style="fill: var(--skin-shade)"/>
+                  <ellipse cx="120" cy="158" rx="17" ry="8" fill="#000" fill-opacity="0.16"/>
+                  <path d="M95 181 C 104 190, 136 190, 145 181 L 149 207 C 136 215, 104 215, 91 207 Z" fill="url(#ar-cloth-g)"/>
+                  <path d="M95 181 C 104 190, 136 190, 145 181" style="stroke: var(--cloth-light)" stroke-width="1.6" fill="none"/>
+                  <path class="ar-signal" d="M99 205 C 110 210.5, 130 210.5, 141 205" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+                  <path class="ar-signal" d="M152 214 L 176 222" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+                  <g class="ar-head">
+                    <path d="M78 98 C 74 58, 100 36, 124 38 C 152 40, 170 62, 166 100 C 164 128, 170 158, 162 184 C 154 192, 146 180, 146 164 L 94 164 C 94 180, 88 192, 78 186 C 70 160, 76 130, 78 98 Z" fill="url(#ar-hair-g)"/>
+                    <ellipse cx="158.5" cy="112" rx="5.5" ry="10" style="fill: var(--skin-shade)"/>
+                    <path d="M120 58 C 150 58, 160 82, 159 106 C 158 132, 146 154, 120 162 C 94 154, 82 132, 81 106 C 80 82, 90 58, 120 58 Z" fill="url(#ar-skin-g)"/>
+                    <path d="M159 106 C 158 132, 146 154, 120 162 C 136 152, 148 134, 152 108 Z" fill="#000" fill-opacity="0.08"/>
+                    <rect x="155.5" y="103" width="8" height="15" rx="4" style="fill: var(--cloth)"/>
+                    <circle class="ar-ear-led" cx="159.5" cy="109" r="1.5"/>
+                    <ellipse cx="99" cy="128" rx="9" ry="5" fill="#D98C7A" fill-opacity="0.14"/>
+                    <ellipse cx="142" cy="128" rx="8" ry="5" fill="#D98C7A" fill-opacity="0.12"/>
+                    <g class="ar-eye">
+                      <ellipse cx="103" cy="108" rx="8" ry="4.3" fill="#E4DAD1"/>
+                      <g clip-path="url(#ar-clip-l)">
+                        <g class="ar-gaze">
+                          <circle cx="103" cy="108" r="3.8" style="fill: var(--iris)"/>
+                          <circle cx="103" cy="108" r="1.7" fill="#17110F"/>
+                          <circle cx="104.3" cy="106.8" r="0.9" fill="#FFFFFF" fill-opacity="0.85"/>
+                        </g>
+                      </g>
+                      <path d="M96 110.6 C 100 112.4, 107 112.4, 110.5 110.4" stroke="#3B2620" stroke-opacity="0.35" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+                      <g class="ar-lid">
+                        <path d="M93 108 Q 103 99.4 113 108 L 113 98.5 L 93 98.5 Z" fill="url(#ar-skin-g)"/>
+                        <path d="M94.5 107.6 Q 103 100.2 111.8 107.2" stroke="#24180F" stroke-width="1.9" fill="none" stroke-linecap="round"/>
+                      </g>
+                    </g>
+                    <g class="ar-eye">
+                      <ellipse cx="137" cy="108" rx="8" ry="4.3" fill="#DCD1C7"/>
+                      <g clip-path="url(#ar-clip-r)">
+                        <g class="ar-gaze">
+                          <circle cx="137" cy="108" r="3.8" style="fill: var(--iris)"/>
+                          <circle cx="137" cy="108" r="1.7" fill="#17110F"/>
+                          <circle cx="138.3" cy="106.8" r="0.9" fill="#FFFFFF" fill-opacity="0.8"/>
+                        </g>
+                      </g>
+                      <path d="M129.5 110.4 C 133 112.4, 140 112.4, 144 110.6" stroke="#3B2620" stroke-opacity="0.35" stroke-width="0.9" fill="none" stroke-linecap="round"/>
+                      <g class="ar-lid">
+                        <path d="M127 108 Q 137 99.4 147 108 L 147 98.5 L 127 98.5 Z" fill="url(#ar-skin-g)"/>
+                        <path d="M128.2 107.2 Q 137 100.2 145.5 107.6" stroke="#24180F" stroke-width="1.9" fill="none" stroke-linecap="round"/>
+                      </g>
+                    </g>
+                    <path class="ar-brow ar-brow-l" d="M92 96 C 97 92.4, 106 91.8, 113 94.4" style="stroke: var(--hair)" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+                    <path class="ar-brow ar-brow-r" d="M127 94.4 C 134 91.8, 143 92.4, 148 96" style="stroke: var(--hair)" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+                    <path d="M121 104 C 121.5 113, 119 120, 117 124.5 C 119 127.2, 123 127.4, 126 125.8" style="stroke: var(--skin-shade)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                    <ellipse class="ar-mouth-open" cx="120" cy="141.5" rx="6.5" ry="3.8" fill="#3A211D"/>
+                    <g class="ar-lips">
+                      <path d="M109 140 C 114 138, 117 138.4, 120 139.4 C 123 138.4, 126 138, 131 140" style="stroke: var(--lip)" stroke-width="1.7" fill="none" stroke-linecap="round"/>
+                      <path d="M111.5 141.4 C 115 145.4, 125 145.4, 128.5 141.4" style="stroke: var(--lip)" stroke-opacity="0.5" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+                    </g>
+                    <g class="ar-smile">
+                      <path d="M108 138.6 C 113 145, 127 145, 132 138.6" style="stroke: var(--lip)" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+                      <path d="M111.5 141.6 C 115.5 146.6, 124.5 146.6, 128.5 141.6" style="stroke: var(--lip)" stroke-opacity="0.45" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+                    </g>
+                    <path d="M134 43 C 108 43, 86 58, 82 92 C 80 112, 82 140, 89 162 C 91 140, 90 118, 96 100 C 104 80, 120 66, 142 61 C 152 61, 161 70, 163 84 C 161 62, 151 45, 134 43 Z" fill="url(#ar-hair-g)"/>
+                    <path d="M130 48 C 110 52, 95 66, 90 90" style="stroke: var(--hair-light)" stroke-opacity="0.7" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+                    <path d="M140 50 C 150 52, 158 60, 161 72" style="stroke: var(--hair-light)" stroke-opacity="0.5" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+                    <rect class="ar-screenlight" x="76" y="52" width="58" height="120" fill="url(#ar-screen-g)"/>
+                  </g>
+                </g>
+                <rect class="ar-veil" x="0" y="0" width="240" height="280" fill="url(#ar-veil-g)"/>
+              </svg>
+            </div>
+            <div class="aries-level" id="avatar-level" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+          <div class="presence-text">
+            <p class="presence-name">ArIès</p>
+            <p class="presence-status"><span class="presence-dot" id="status-dot"></span><span id="status-text">Disponible</span></p>
+          </div>
+          <p class="sr-only" id="status-live" aria-live="polite"></p>
+        </aside>
 
-    function bubble(role, text = '') {
-      log.querySelector('.hint')?.remove();
-      const el = document.createElement('div');
-      el.className = `msg ${role}`;
-      el.textContent = text;
-      log.append(el);
-      log.scrollTop = log.scrollHeight;
-      return el;
-    }
+        <main class="chat">
+          <div class="messages-scroll">
+            <div class="messages" id="log"></div>
+          </div>
+          <div class="composer-wrap">
+            <form class="composer" id="composer">
+              <label class="sr-only" for="input">Message pour ArIès</label>
+              <textarea id="input" rows="1" placeholder="Écris à ArIès…" autocomplete="off"></textarea>
+              <div class="composer-live" id="live" hidden>
+                <div class="aries-level is-live" id="live-level" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+                <span id="live-text"></span>
+              </div>
+              <button class="btn btn-icon mic" type="button" id="mic" aria-label="Me parler à voix haute" hidden>
+                <svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg>
+              </button>
+              <button class="btn btn-icon btn-primary" type="submit" id="send" aria-label="Envoyer">
+                <svg class="icon" aria-hidden="true"><use href="#i-send"/></svg>
+              </button>
+            </form>
+            <p class="composer-hint">Entrée pour envoyer · Maj+Entrée pour aller à la ligne · le micro coupe ArIès quand elle parle</p>
+          </div>
+        </main>
+      </div>
 
-    function showHint() {
-      log.replaceChildren();
-      const hint = document.createElement('p');
-      hint.className = 'hint';
-      hint.textContent = 'Bonjour. Que puis-je faire pour toi ?';
-      log.append(hint);
-    }
-
-    async function loadConversation(id) {
-      try {
-        const messages = await (await api(`/conversations/${id}/messages`)).json();
-        conversationId = id;
-        log.replaceChildren();
-        messages.forEach((m) => bubble(m.role, m.content));
-        if (!messages.length) showHint();
-      } catch (err) {
-        if (err.status !== 404) throw err;
-        newConversation();
-      }
-    }
-
-    function newConversation() {
-      conversationId = null;
-      storage.set(null);
-      showHint();
-      input.focus();
-    }
-
-    async function ensureConversation() {
-      if (conversationId) return conversationId;
-      const conversation = await (await api('/conversations', { method: 'POST' })).json();
-      conversationId = String(conversation.id);
-      storage.set(conversationId);
-      return conversationId;
-    }
-
-    const TOOL_LABELS = {
-      web_search: (args) => `🔎 Recherche : ${args.query ?? ''}`,
-      read_web_page: (args) => `📄 Lecture : ${args.url ?? ''}`,
-    };
-
-    // Une ligne par appel d'outil, insérée avant la réponse en cours.
-    function toolLine(out, data) {
-      const el = document.createElement('div');
-      el.className = 'tool';
-      el.textContent = (TOOL_LABELS[data.name] ?? (() => `🛠 ${data.name}`))(data.arguments ?? {});
-      out.before(el);
-      log.scrollTop = log.scrollHeight;
-      return el;
-    }
-
-    function askApproval(line, approvalId) {
-      const decide = async (approved) => {
-        line.querySelectorAll('button').forEach((b) => b.remove());
-        await api(`/tool-approvals/${approvalId}`, { method: 'PUT', body: JSON.stringify({ approved }) })
-          .catch((err) => line.append(` (${err.message})`));
-      };
-      for (const [label, approved] of [['Autoriser', true], ['Refuser', false]]) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = label;
-        if (approved) button.className = 'allow';
-        button.addEventListener('click', () => decide(approved));
-        line.append(button);
-      }
-    }
-
-    async function ask(text) {
-      const id = await ensureConversation();
-      bubble('user', text);
-      const out = bubble('assistant');
-      let answer = '';
-      const tools = new Map();
-
-      const res = await api(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ content: text }) });
-
-      // Flux SSE : blocs séparés par une ligne vide, champs `event:` et `data:`.
-      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-      let buffer = '';
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += value;
-        const blocks = buffer.split('\n\n');
-        buffer = blocks.pop();
-        for (const block of blocks) {
-          const event = block.match(/^event: ?(.*)$/m)?.[1];
-          const data = block.match(/^data: ?(.*)$/m)?.[1];
-          if (event === 'token') {
-            answer += JSON.parse(data).text;
-            out.textContent = answer;
-            log.scrollTop = log.scrollHeight;
-          } else if (event === 'tool_call') {
-            const call = JSON.parse(data);
-            tools.set(call.call_id, toolLine(out, call));
-          } else if (event === 'approval_required') {
-            const req = JSON.parse(data);
-            const line = tools.get(req.call_id) ?? toolLine(out, req);
-            line.prepend('⚠ Validation requise · ');
-            askApproval(line, req.approval_id);
-          } else if (event === 'tool_result') {
-            const res = JSON.parse(data);
-            const line = tools.get(res.call_id);
-            if (line) {
-              line.querySelectorAll('button').forEach((b) => b.remove());
-              line.append(res.success ? ' ✓' : ` ✗ (${res.decision === 'automatic' || res.decision === 'approved' ? 'échec' : 'refusé'})`);
-              if (!res.success) line.classList.add('failed');
-            }
-          } else if (event === 'private_mode') {
-            toolLine(out, { name: 'private_mode' }).textContent = '🔒 Données privées : suite en local (plus lent)';
-          } else if (event === 'error') {
-            throw new Error(JSON.parse(data).message);
-          }
-        }
-      }
-    }
-
-    async function loadFacts() {
-      const list = $('facts');
-      const facts = await (await api('/memory-facts')).json();
-      list.replaceChildren();
-      if (!facts.length) {
-        const li = document.createElement('li');
-        li.textContent = 'Rien pour l’instant.';
-        list.append(li);
-      }
-      for (const fact of facts) {
-        const li = document.createElement('li');
-        const text = document.createElement('span');
-        text.textContent = fact.content;
-        const del = document.createElement('button');
-        del.type = 'button';
-        del.title = 'Oublier';
-        del.textContent = '✕';
-        del.addEventListener('click', async () => {
-          await api(`/memory-facts/${fact.id}`, { method: 'DELETE' });
-          li.remove();
-        });
-        li.append(text, del);
-        list.append(li);
-      }
-    }
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text || send.disabled) return;
-      input.value = '';
-      send.disabled = true;
-      core.classList.add('busy');
-      try {
-        await ask(text);
-      } catch (err) {
-        bubble('assistant error', `Erreur : ${err.message}`);
-      } finally {
-        send.disabled = false;
-        core.classList.remove('busy');
-        input.focus();
-      }
-    });
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
-    });
-    $('new-chat').addEventListener('click', newConversation);
-    $('open-memory').addEventListener('click', async () => {
-      $('memory').classList.add('open');
-      await loadFacts().catch((err) => alert(`Mémoire indisponible : ${err.message}`));
-    });
-    $('close-memory').addEventListener('click', () => $('memory').classList.remove('open'));
-
-    const saved = storage.get();
-    saved ? loadConversation(saved).catch(() => newConversation()) : showHint();
-  </script>
+      <div class="drawer-backdrop" id="backdrop" hidden></div>
+      <section class="drawer" id="drawer-history" role="dialog" aria-modal="true" aria-labelledby="h-history" hidden>
+        <div class="drawer-head">
+          <h2 id="h-history">Conversations</h2>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Fermer"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="drawer-body" id="history-body"></div>
+      </section>
+      <section class="drawer" id="drawer-tasks" role="dialog" aria-modal="true" aria-labelledby="h-tasks" hidden>
+        <div class="drawer-head">
+          <h2 id="h-tasks">Tâches et rappels</h2>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Fermer"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="drawer-body" id="tasks-body"></div>
+      </section>
+      <section class="drawer" id="drawer-memory" role="dialog" aria-modal="true" aria-labelledby="h-memory" hidden>
+        <div class="drawer-head">
+          <h2 id="h-memory">Ce qu'ArIès sait de toi</h2>
+          <button class="btn btn-ghost btn-icon" type="button" data-close aria-label="Fermer"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="drawer-body" id="memory-body"></div>
+      </section>
+    </div>
+  </div>
 </body>
 </html>

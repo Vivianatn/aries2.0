@@ -1,5 +1,7 @@
 use aries_llm::LlmError;
 use aries_memory::MemoryError;
+use aries_proactive::ProactiveError;
+use aries_voice::VoiceError;
 use axum::{
     Json,
     http::StatusCode,
@@ -28,6 +30,14 @@ impl ApiError {
         Self::new(StatusCode::BAD_REQUEST, "bad_request", message)
     }
 
+    pub fn voice_disabled() -> Self {
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "voice_disabled",
+            "la voix n'est pas configurée (section [voice])",
+        )
+    }
+
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::new(StatusCode::NOT_FOUND, "not_found", message)
     }
@@ -48,6 +58,33 @@ impl From<MemoryError> for ApiError {
             "memory_error",
             err.to_string(),
         )
+    }
+}
+
+impl From<ProactiveError> for ApiError {
+    fn from(err: ProactiveError) -> Self {
+        tracing::error!(%err, "erreur des tâches");
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "tasks_error",
+            err.to_string(),
+        )
+    }
+}
+
+impl From<VoiceError> for ApiError {
+    fn from(err: VoiceError) -> Self {
+        match err {
+            VoiceError::TextTooLong(_) => Self::bad_request(err.to_string()),
+            VoiceError::Http(_) => {
+                tracing::error!(%err, "voix indisponible");
+                Self::new(
+                    StatusCode::BAD_GATEWAY,
+                    "voice_unavailable",
+                    err.to_string(),
+                )
+            }
+        }
     }
 }
 

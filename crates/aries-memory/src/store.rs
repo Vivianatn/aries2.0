@@ -108,6 +108,25 @@ impl Store {
         .await?)
     }
 
+    /// Supprime la conversation, ses messages et ses souvenirs (cascade). Renvoie les
+    /// identifiants des souvenirs supprimés (à retirer de l'index), ou `None` si elle
+    /// n'existait pas. Les faits qu'elle a produits restent (source mise à NULL).
+    pub async fn delete_conversation(&self, id: i64) -> Result<Option<Vec<i64>>, MemoryError> {
+        let mut tx = self.pool.begin().await?;
+        let episodes: Vec<i64> =
+            sqlx::query_scalar("SELECT id FROM episodes WHERE conversation_id = ?")
+                .bind(id)
+                .fetch_all(&mut *tx)
+                .await?;
+        let deleted = sqlx::query("DELETE FROM conversations WHERE id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+        tx.commit().await?;
+        Ok((deleted > 0).then_some(episodes))
+    }
+
     pub async fn mark_private(&self, conversation_id: i64) -> Result<(), MemoryError> {
         sqlx::query("UPDATE conversations SET private = 1 WHERE id = ?")
             .bind(conversation_id)
@@ -408,6 +427,19 @@ mod tests {
             store.episodes_by_ids(&episodes, true).await.unwrap().len(),
             2
         );
+
+        // Effacement : souvenirs en cascade, faits conservés (source à NULL).
+        assert_eq!(
+            store.delete_conversation(secret).await.unwrap(),
+            Some(vec![secret_episode])
+        );
+        assert_eq!(store.delete_conversation(secret).await.unwrap(), None);
+        assert!(store.conversation(secret).await.unwrap().is_none());
+        assert_eq!(
+            store.episodes_by_ids(&episodes, true).await.unwrap().len(),
+            1
+        );
+        assert_eq!(store.facts_by_ids(&all, true).await.unwrap().len(), 2);
         let _ = std::fs::remove_file(&path);
     }
 }

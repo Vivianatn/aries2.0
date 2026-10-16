@@ -32,6 +32,8 @@ pub enum AgentEvent {
         call_id: String,
         name: String,
         arguments: Value,
+        /// Délai avant refus automatique (compte à rebours de l'interface).
+        expires_in_secs: u64,
     },
     ToolResult {
         call_id: String,
@@ -309,6 +311,7 @@ impl Agent {
                     call_id: call.id.clone(),
                     name: name.clone(),
                     arguments: arguments.clone(),
+                    expires_in_secs: self.config.approval_timeout().as_secs(),
                 },
             )
             .await;
