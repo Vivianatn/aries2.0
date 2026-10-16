@@ -1,1 +1,8 @@
-*.sh text eol=lf
+# Fins de ligne LF partout, y compris dans `git archive` sous Windows (core.autocrlf=true) :
+# une migration SQL en CRLF change d'empreinte et sqlx refuse de démarrer.
+* text=auto eol=lf
+*.woff2 binary
+*.png binary
+*.onnx binary
+*.gguf binary
+*.bin binary

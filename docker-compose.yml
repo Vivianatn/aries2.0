@@ -164,20 +164,32 @@ services:
     mem_limit: 384m
     restart: unless-stopped
 
-  # Reconnaissance vocale (whisper.cpp, MIT). `--convert` : ffmpeg (présent dans l'image)
-  # accepte le WebM/Opus ou le MP4 enregistré par le navigateur. Aucun port publié.
+  # Reconnaissance vocale (whisper.cpp, MIT), compilée pour ce processeur (deploy/whisper).
+  # `--convert` : ffmpeg accepte le WebM/Opus ou le MP4 du navigateur. Aucun port publié.
   stt:
-    image: ghcr.io/ggml-org/whisper.cpp:main
+    build: deploy/whisper
     command:
-      - >-
-        whisper-server --host 0.0.0.0 --port 8080 --convert --tmp-dir /tmp -t 2 -l fr
-        -m /models/${WHISPER_MODEL_FILE:-ggml-small-q5_1.bin}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --convert
+      - --tmp-dir
+      - /tmp
+      # Mesuré sur le VPS (phrase de 3 s, modèle small) : 2 threads ≈ 11,7 s, 4 threads ≈ 6 s.
+      # Le LLM est inactif pendant une transcription (elle précède la question).
+      - -t
+      - "4"
+      - -l
+      - fr
+      - -m
+      - /models/${WHISPER_MODEL_FILE:-ggml-small-q5_1.bin}
     volumes:
       - ./models:/models:ro
     # Fichiers audio temporaires en RAM seulement : rien n'est écrit sur le disque.
     tmpfs:
       - /tmp
-    cpus: 2
+    cpus: 4
     mem_limit: 1g
     restart: unless-stopped
 

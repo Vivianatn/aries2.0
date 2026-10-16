@@ -222,7 +222,7 @@ Les embeddings sont calculés localement (ex. `bge-m3` ou `nomic-embed` via
 
 **4a ✅ (bouton)** : le bouton 🎙 de l'interface enregistre (MediaRecorder, un clic pour
 commencer, un pour envoyer). L'audio part à `POST /api/v1/transcriptions`, puis à
-`whisper-server` (service `stt`, `ggml-small-q5_1`, `-l fr`, 2 threads, ffmpeg via
+`whisper-server` (service `stt`, `ggml-small-q5_1`, `-l fr`, 4 threads, ~6 s pour une phrase de 3 s, image compilée pour AVX2 dans `deploy/whisper`, ffmpeg via
 `--convert`). Le texte devient un message normal. La réponse est ensuite lue : le navigateur
 la coupe en phrases pendant qu'elle arrive, et chaque phrase passe par
 `POST /api/v1/syntheses`, puis par Piper (service `tts`, voix `fr_FR-siwis-medium`, à

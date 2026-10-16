@@ -13,7 +13,7 @@ Critères : voir README §7. Une ligne par adoption.
 | `eventsource-stream` | 0.2 | MIT/Apache-2.0 | Décodage des flux SSE des LLM |
 | `futures` | 0.3 | MIT/Apache-2.0 | Combinateurs de flux |
 | `async-trait` | 0.1 | MIT/Apache-2.0 | Trait `LlmProvider` utilisable en `dyn` |
-| whisper.cpp (image `ghcr.io/ggml-org/whisper.cpp:main`, `whisper-server`) | dernière | MIT | Reconnaissance vocale sur CPU, `--convert` (ffmpeg) pour l'audio du navigateur. Service séparé |
+| whisper.cpp (`whisper-server`, compilé dans `deploy/whisper` : l'image officielle plante, AVX-512) | v1.9.4 | MIT | Reconnaissance vocale sur CPU, `--convert` (ffmpeg) pour l'audio du navigateur. Service séparé |
 | Whisper `ggml-small-q5_1` | — | MIT | Modèle STT multilingue (~190 Mo), bon compromis vitesse/qualité en français sur CPU |
 | Piper (`piper-tts[http]`, OHF-Voice/piper1-gpl) | 1.8.0 | GPL-3.0 | Synthèse vocale locale et rapide. GPL : conteneur à part (`deploy/piper`), appelé en HTTP |
 | Voix Piper `fr_FR-siwis-medium` | — | MIT (modèle), données CC-BY 4.0 | Voix française par défaut (une locutrice) ; `fr_FR-upmc-medium` (locuteurs jessica/pierre) en alternative |
